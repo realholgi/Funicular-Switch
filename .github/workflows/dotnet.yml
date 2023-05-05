@@ -23,8 +23,6 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore ./Source
     - name: Build
-      run: dotnet build ./Source --no-restore --configuration Release
+      run: dotnet build ./Source --no-restore
     - name: Test
       run: dotnet test ./Source --no-build --verbosity normal
-    - name: Create the package
-      run: dotnet pack ./Source --configuration Release
