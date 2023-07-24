@@ -23,7 +23,7 @@ FunicularSwitch helps you to:
 
 [**FunicularSwitch**](https://github.com/bluehands/Funicular-Switch#funicularswitch-usage) is a library containing the Result and Option type. Usage and the general idea is described in the following sections. The 'Error' type is always string, which allows natural concatenation and is sufficient in many cases.
 
-[**FunicularSwitch.Generators**](https://github.com/bluehands/Funicular-Switch#funicularswitchgenerators-usage) is a C# source generator package (projects consuming it, will have no runtime dependency to any FunicularSwitch dll). With this source generator you can have a result type with the very same behaviour as FunicularSwitch.Result but a custom error type (instead of string) by just annotating a class with the `ResultType` attribute. A second thing coming with this package are generated F#-like Match methods. They allow for compiler safe switches handling all concrete subtypes of a base class (very useful for union type implementations).
+[**FunicularSwitch.Generators**](https://github.com/bluehands/Funicular-Switch#funicularswitchgenerators-usage) is a C# source generator package (projects consuming it, will have no runtime dependency to any FunicularSwitch dll). With this source generator you can have a result type with the very same behaviour as FunicularSwitch.Result but a custom error type (instead of string) by just annotating a class with the `ResultType` attribute. A second thing coming with this package are generated F#-like Match methods. They allow for compiler safe switches handling all concrete subtypes of a base class (very useful for union type implementations). As a third thing the same Match methods are also generated for enum types annotated with the `ExtendedEnum` attribute.
 
 ## <a name="funicular_usage"></a>FunicularSwitch Usage
 
@@ -77,7 +77,7 @@ Ok 1
 
 ```
 
-The lamdas passed to `Map` and `Bind` are only invoked if everything went well so far, otherwise you are on the error track were error information is passed on 'invisibly':
+The lambdas passed to `Map` and `Bind` are only invoked if everything went well so far, otherwise you are on the error track were error information is passed on 'invisibly':
 b
 
 ``` cs --region errorPropagation --source-file Source/DocSamples/ReadmeSamples.cs --project Source/DocSamples/DocSamples.csproj --session errorPropagation
@@ -122,10 +122,10 @@ Those are basically the four (actually three) main operations on `Result` - `Cre
 
 - 'Combine results to Ok if everything is Ok otherwise collect errors' - `Aggregate`, `Map` and `Bind` overloads on collections
 - 'Ok if at least one item passes certain validations, otherwise collect info why no one matched' - `FirstOk`
-- 'Ok if item from a dictionary was found, ohterwise (nice) error' - `TryGetValue` extension on Dictionary
-- 'Ok if type T is `as` convertible to T1, error otherwies' - 'As' extension returning Result
-- 'Ok if item is valid regarind custom validations, error otherwise' - `Validate`
-- 'Async support' - `Map` `Bind` and `Aggregate` overloads with async lamdas and extensions defined on Task<...>
+- 'Ok if item from a dictionary was found, otherwise (nice) error' - `TryGetValue` extension on Dictionary
+- 'Ok if type T is `as` convertible to T1, error otherwise' - 'As' extension returning Result
+- 'Ok if item is valid regarding custom validations, error otherwise' - `Validate`
+- 'Async support' - `Map` `Bind` and `Aggregate` overloads with async lambdas and extensions defined on Task<...>
 - ...
 
 If you miss functionality it can be added easily by writing your own extension methods. If it is useful for us all don't hesitate to make pull request. Finally a little example demonstrating some of the functionality mentioned above (validation, aggregation, async pipeline). Lets cook:
@@ -218,6 +218,8 @@ As you can see, all errors are collected as far as possible. Feel free to play a
 
 *DISCLAIMER*: Right now source generator support in Visual Studio is quite a new feature. Often, especially after adding or updating the generator package intellisense will show errors, even though the code actually compiles. In this cases Visual Studio needs a restart right now (Visual Studio 2022 17.0.5).
 
+### ResultType attribute
+
 After adding the FunicularSwitch.Generators package you can mark a class as result type using the `ResultType` attribute. Ok and Error cases, Map, Bind, Match and some other methods will be generated so you can use your Result just like the one from the FunicularSwitch package.
 
 ``` cs
@@ -235,7 +237,9 @@ public static class MyCustomErrorExtension
 ```
 and a bunch of methods like `Aggregate`, `Validate`, `AllOk`, `FirstOk` and more will appear that make use of the fact that errors can be concatenated.
 
-There is anonther useful generator coming with the package. Adding the `UnionType` attribute to a base type makes `Match` extension methods appear for this type. They are also inspired by F# where a match expression has to cover all cases and the compiler helps you with that. Assuming you implemented an error type as a base type and one derived type for every kind of error:
+### UnionType attribute
+
+There is another useful generator coming with the package. Adding the `UnionType` attribute or to a base type or interface makes `Match` extension methods appear for this type. They are also inspired by F# where a match expression has to cover all cases and the compiler helps you with that. Assuming you implemented an error type as a base type and one derived type for every kind of error:
 
 ``` cs
 [FunicularSwitch.Generators.UnionType]
@@ -272,7 +276,7 @@ static void PrintIfNotFound(Error error) =>
             );
 ```
 
-To avoid bad suprises a well defined order of parameters of Match methods is crucial. By default parameters are generated in alphabetical order. This behaviour can be adapted using the `CaseOrder` argument on `UnionType` attribute (FunicularSwitch.Generators namespace omitted):
+To avoid bad surprises a well defined order of parameters of Match methods is crucial. By default parameters are generated in alphabetical order. This behaviour can be adapted using the `CaseOrder` argument on `UnionType` attribute (FunicularSwitch.Generators namespace omitted):
 
 ``` cs
 //default
@@ -297,6 +301,48 @@ public sealed class InvalidInput : Error {...}
 
 If you like union types but don't like excessive typing in C# try the [Switchyard](https://github.com/bluehands/Switchyard) Visual Studio extension, which generates the boilerplate code for you. It plays nicely with the FunicularSwitch.Generators package.
 
+### ExtendedEnum attribute
+
+The `ExtendedEnum` attribute works like `UnionType` but for enums:
+
+``` cs
+[FunicularSwitch.Generators.ExtendedEnum]
+public enum PlatformIdentifier
+{
+    LinuxDevice,
+    DeveloperMachine,
+    WindowsDevice
+}
+```
+
+the generator detecting the `[ExtendedEnum]` adds Match methods so you can write:
+
+``` cs
+var isGraphicalLinux = PlatformIdentifier.LinuxDevice
+    .Match(
+        developerMachine: () => false,
+        linuxDevice: () => true,
+        windowsDevice: () => true
+    );
+```
+
+The default case order for `ExtendedEnum` is AsDeclared. To avoid problems with changing case orders, one should always use named parameters in Match and Switch calls!
+
+To generate Match extensions for all types in an assembly use the `ExtendEnums` attribute. Flags enums an enums with duplicate values are omitted:
+
+``` cs
+//generate internal Match extension methods for all enums in System (Containing assembly of System.DateTime). 
+[assembly: ExtendEnums(typeof(System.DateTime), Accessibility = ExtensionAccessibility.Internal)]
+
+//shortcut to generate Match extension methods for all enums in current assembly
+[assembly: ExtendEnums]
+```
+
+To generate Match extensions for a specific type in an assembly write:
+
+```
+[assembly: ExtendEnum(typeof(DateTimeKind), CaseOrder = EnumCaseOrder.Alphabetic)]
+```
 
 #### Additional documentation
 

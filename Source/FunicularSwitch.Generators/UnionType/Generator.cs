@@ -1,5 +1,5 @@
-﻿using FunicularSwitch.Generators.Generation;
-using FunicularSwitch.Generators.ResultType;
+﻿using FunicularSwitch.Generators.Common;
+using FunicularSwitch.Generators.Generation;
 using Microsoft.CodeAnalysis;
 
 namespace FunicularSwitch.Generators.UnionType;
@@ -23,7 +23,7 @@ public static class Generator
 
         using (unionTypeSchema.Namespace != null ? builder.Namespace(unionTypeSchema.Namespace) : null)
         {
-            using (builder.StaticPartialClass("MatchExtension", unionTypeSchema.IsInternal ? "internal" : "public"))
+            using (builder.StaticPartialClass($"{unionTypeSchema.TypeName.Replace(".", "_")}MatchExtension", unionTypeSchema.IsInternal ? "internal" : "public"))
             {
 	            var thisTaskParameter = ThisParameter(unionTypeSchema, $"Task<{unionTypeSchema.FullTypeName}>");
 	            var caseParameters = unionTypeSchema.Cases.Select(c => c.ParameterName).ToSeparatedString();
@@ -55,10 +55,10 @@ public static class Generator
         }
 
         builder.WriteLine("#pragma warning restore 1591");
-        return ($"{unionTypeSchema.FullTypeName}MatchExtension.g.cs", builder.ToString());
+        return (unionTypeSchema.FullTypeName.ToMatchExtensionFilename(), builder.ToString());
     }
 
-    static void GenerateMatchMethod(CSharpBuilder builder, UnionTypeSchema unionTypeSchema, string t)
+	static void GenerateMatchMethod(CSharpBuilder builder, UnionTypeSchema unionTypeSchema, string t)
     {
         var thisParameterType = unionTypeSchema.FullTypeName;
         var thisParameter = ThisParameter(unionTypeSchema, thisParameterType);
@@ -71,7 +71,10 @@ public static class Generator
             foreach (var c in unionTypeSchema.Cases)
             {
                 caseIndex++;
-                builder.WriteLine($"{c.FullTypeName} case{caseIndex} => {c.ParameterName}(case{caseIndex}),");
+                builder.WriteLine(
+	                unionTypeSchema.IsEnum
+		                ? $"{c.FullTypeName} => {c.ParameterName}(),"
+		                : $"{c.FullTypeName} case{caseIndex} => {c.ParameterName}(case{caseIndex}),");
             }
 
             builder.WriteLine(
@@ -94,10 +97,16 @@ public static class Generator
 			    foreach (var c in unionTypeSchema.Cases)
 			    {
 				    caseIndex++;
-				    builder.WriteLine($"case {c.FullTypeName} case{caseIndex}:");
+				    builder.WriteLine(
+					    unionTypeSchema.IsEnum
+						    ? $"case {c.FullTypeName}:"
+						    : $"case {c.FullTypeName} case{caseIndex}:"
+				    );
 				    using (builder.Indent())
 				    {
-					    var call = $"{c.ParameterName}(case{caseIndex})";
+					    var call = unionTypeSchema.IsEnum
+						    ? $"{c.ParameterName}()"
+						    : $"{c.ParameterName}(case{caseIndex})";
 					    if (isAsync)
 						    call = $"await {call}.ConfigureAwait(false)";
 					    builder.WriteLine($"{call};");
@@ -121,7 +130,7 @@ public static class Generator
     {
         handlerReturnType ??= returnType;
         var handlerParameters = unionTypeSchema.Cases
-            .Select(c => new Parameter($"Func<{c.FullTypeName}, {handlerReturnType}>", c.ParameterName));
+            .Select(c => new Parameter( unionTypeSchema.IsEnum ? $"Func<{handlerReturnType}>" : $"Func<{c.FullTypeName}, {handlerReturnType}>", c.ParameterName));
 
         builder.WriteMethodSignature(
             modifiers: modifiers,
@@ -135,7 +144,19 @@ public static class Generator
     {
 	    var returnType = asyncReturn ?? isAsync ? "async Task" : "void";
         var handlerParameters = unionTypeSchema.Cases
-		    .Select(c => new Parameter(isAsync ? $"Func<{c.FullTypeName}, Task>" : $"Action<{c.FullTypeName}>", c.ParameterName));
+		    .Select(c =>
+		    {
+			    var parameterType = unionTypeSchema.IsEnum
+				    ? isAsync
+					    ? "Func<Task>"
+					    : "Action"
+				    : isAsync
+					    ? $"Func<{c.FullTypeName}, Task>"
+					    : $"Action<{c.FullTypeName}>";
+			    return new Parameter(
+					    parameterType,
+					    c.ParameterName);
+		    });
 
         string modifiers = "public static";
 
