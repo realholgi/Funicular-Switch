@@ -13,8 +13,8 @@
 		</VersionSuffixLocal>
 
 		<!--#region adapt versions here-->
-		<MajorVersion>4</MajorVersion>
-		<MinorAndPatchVersion>0.0</MinorAndPatchVersion>
+		<MajorVersion>6</MajorVersion>
+		<MinorAndPatchVersion>1.2</MinorAndPatchVersion>
 		<!--#endregion-->
 
 		<AssemblyVersion>$(MajorVersion).0.0</AssemblyVersion>
@@ -25,28 +25,23 @@
 
 		<!-- Descriptions and information-->
 		<Titel>FunicularSwitch</Titel>
-		<Authors>bluehands GmbH &amp; C.ommunication KG</Authors>
 		<PackageDescription>Funicular-Switch is a lightweight C# port of F# result and option types</PackageDescription>
-		<Copyright>Copyright 2022 bluehands GmbH &amp; C.ommunication KG</Copyright>
-		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
-		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageIcon>FunicularSwitch.png</PackageIcon>
-		<PackageTags>F# Result, Result, Option, Match, Map, Bind, Railway oriented programming, Railway oriented, Railway, Pipeline</PackageTags>
-		<RepositoryUrl>https://github.com/bluehands/Funicular-Switch</RepositoryUrl>
-		<RepositoryType>Git</RepositoryType>
-		<RepositoryBranch>main</RepositoryBranch>
+		<PackageTags>bluehands, F#Result, Result, Option, Match, Map, Bind, RailwayOrientedProgramming</PackageTags>
 
 		<!-- Package specific settings -->
-		<PackageOutputPath>$(OutputPath)</PackageOutputPath>
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
-		<ContentTargetFolders>content</ContentTargetFolders>
 		<LangVersion>latest</LangVersion>
 		<Nullable>enable</Nullable>
 		<SignAssembly>true</SignAssembly>
 		<AssemblyOriginatorKeyFile>FunicularSwitch.snk</AssemblyOriginatorKeyFile>
-		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="../../README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
 
 	<Target Name="PreparePackageReleaseNotesFromFile" BeforeTargets="GenerateNuspec">
 		<ReadLinesFromFile File="../RELEASE-NOTES.txt">
@@ -56,6 +51,22 @@
 			<PackageReleaseNotes>@(ReleaseNoteLines, '%0a')</PackageReleaseNotes>
 		</PropertyGroup>
 	</Target>
+
+	<PropertyGroup>
+		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+		<CompilerGeneratedFilesOutputPath>Generated</CompilerGeneratedFilesOutputPath>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Don't include the output from a previous source generator execution into future runs; the */** trick here ensures that there's
+  at least one subdirectory, which is our key that it's coming from a source generator as opposed to something that is coming from
+  some other tool. -->
+		<Compile Remove="$(CompilerGeneratedFilesOutputPath)/*/**/*.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\FunicularSwitch.Generators\FunicularSwitch.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+	</ItemGroup>
 
 	<Import Project="..\FunicularSwitch.Common\FunicularSwitch.Common.projitems" Label="Shared" />
 </Project>

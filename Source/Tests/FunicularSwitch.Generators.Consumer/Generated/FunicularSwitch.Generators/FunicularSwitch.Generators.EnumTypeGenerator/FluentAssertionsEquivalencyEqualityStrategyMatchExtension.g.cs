@@ -1,38 +1,35 @@
 ﻿#pragma warning disable 1591
-using System;
-using System.Threading.Tasks;
-
 namespace FluentAssertions.Equivalency
 {
-	public static partial class EqualityStrategyMatchExtension
+	internal static partial class EqualityStrategyMatchExtension
 	{
-		public static T Match<T>(this FluentAssertions.Equivalency.EqualityStrategy equalityStrategy, Func<T> @equals, Func<T> forceEquals, Func<T> forceMembers, Func<T> members) =>
+		public static T Match<T>(this FluentAssertions.Equivalency.EqualityStrategy equalityStrategy, global::System.Func<T> @equals, global::System.Func<T> forceEquals, global::System.Func<T> forceMembers, global::System.Func<T> members) =>
 		equalityStrategy switch
 		{
 			FluentAssertions.Equivalency.EqualityStrategy.Equals => @equals(),
 			FluentAssertions.Equivalency.EqualityStrategy.ForceEquals => forceEquals(),
 			FluentAssertions.Equivalency.EqualityStrategy.ForceMembers => forceMembers(),
 			FluentAssertions.Equivalency.EqualityStrategy.Members => members(),
-			_ => throw new ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EqualityStrategy: {equalityStrategy.GetType().Name}")
+			_ => throw new global::System.ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EqualityStrategy: {equalityStrategy.GetType().Name}")
 		};
 		
-		public static Task<T> Match<T>(this FluentAssertions.Equivalency.EqualityStrategy equalityStrategy, Func<Task<T>> @equals, Func<Task<T>> forceEquals, Func<Task<T>> forceMembers, Func<Task<T>> members) =>
+		public static global::System.Threading.Tasks.Task<T> Match<T>(this FluentAssertions.Equivalency.EqualityStrategy equalityStrategy, global::System.Func<global::System.Threading.Tasks.Task<T>> @equals, global::System.Func<global::System.Threading.Tasks.Task<T>> forceEquals, global::System.Func<global::System.Threading.Tasks.Task<T>> forceMembers, global::System.Func<global::System.Threading.Tasks.Task<T>> members) =>
 		equalityStrategy switch
 		{
 			FluentAssertions.Equivalency.EqualityStrategy.Equals => @equals(),
 			FluentAssertions.Equivalency.EqualityStrategy.ForceEquals => forceEquals(),
 			FluentAssertions.Equivalency.EqualityStrategy.ForceMembers => forceMembers(),
 			FluentAssertions.Equivalency.EqualityStrategy.Members => members(),
-			_ => throw new ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EqualityStrategy: {equalityStrategy.GetType().Name}")
+			_ => throw new global::System.ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EqualityStrategy: {equalityStrategy.GetType().Name}")
 		};
 		
-		public static async Task<T> Match<T>(this Task<FluentAssertions.Equivalency.EqualityStrategy> equalityStrategy, Func<T> @equals, Func<T> forceEquals, Func<T> forceMembers, Func<T> members) =>
+		public static async global::System.Threading.Tasks.Task<T> Match<T>(this global::System.Threading.Tasks.Task<FluentAssertions.Equivalency.EqualityStrategy> equalityStrategy, global::System.Func<T> @equals, global::System.Func<T> forceEquals, global::System.Func<T> forceMembers, global::System.Func<T> members) =>
 		(await equalityStrategy.ConfigureAwait(false)).Match(@equals, forceEquals, forceMembers, members);
 		
-		public static async Task<T> Match<T>(this Task<FluentAssertions.Equivalency.EqualityStrategy> equalityStrategy, Func<Task<T>> @equals, Func<Task<T>> forceEquals, Func<Task<T>> forceMembers, Func<Task<T>> members) =>
+		public static async global::System.Threading.Tasks.Task<T> Match<T>(this global::System.Threading.Tasks.Task<FluentAssertions.Equivalency.EqualityStrategy> equalityStrategy, global::System.Func<global::System.Threading.Tasks.Task<T>> @equals, global::System.Func<global::System.Threading.Tasks.Task<T>> forceEquals, global::System.Func<global::System.Threading.Tasks.Task<T>> forceMembers, global::System.Func<global::System.Threading.Tasks.Task<T>> members) =>
 		await (await equalityStrategy.ConfigureAwait(false)).Match(@equals, forceEquals, forceMembers, members).ConfigureAwait(false);
 		
-		public static void Switch(this FluentAssertions.Equivalency.EqualityStrategy equalityStrategy, Action @equals, Action forceEquals, Action forceMembers, Action members)
+		public static void Switch(this FluentAssertions.Equivalency.EqualityStrategy equalityStrategy, global::System.Action @equals, global::System.Action forceEquals, global::System.Action forceMembers, global::System.Action members)
 		{
 			switch (equalityStrategy)
 			{
@@ -49,11 +46,11 @@ namespace FluentAssertions.Equivalency
 					members();
 					break;
 				default:
-					throw new ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EqualityStrategy: {equalityStrategy.GetType().Name}");
+					throw new global::System.ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EqualityStrategy: {equalityStrategy.GetType().Name}");
 			}
 		}
 		
-		public static async Task Switch(this FluentAssertions.Equivalency.EqualityStrategy equalityStrategy, Func<Task> @equals, Func<Task> forceEquals, Func<Task> forceMembers, Func<Task> members)
+		public static async global::System.Threading.Tasks.Task Switch(this FluentAssertions.Equivalency.EqualityStrategy equalityStrategy, global::System.Func<global::System.Threading.Tasks.Task> @equals, global::System.Func<global::System.Threading.Tasks.Task> forceEquals, global::System.Func<global::System.Threading.Tasks.Task> forceMembers, global::System.Func<global::System.Threading.Tasks.Task> members)
 		{
 			switch (equalityStrategy)
 			{
@@ -70,14 +67,14 @@ namespace FluentAssertions.Equivalency
 					await members().ConfigureAwait(false);
 					break;
 				default:
-					throw new ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EqualityStrategy: {equalityStrategy.GetType().Name}");
+					throw new global::System.ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EqualityStrategy: {equalityStrategy.GetType().Name}");
 			}
 		}
 		
-		public static async Task Switch(this Task<FluentAssertions.Equivalency.EqualityStrategy> equalityStrategy, Action @equals, Action forceEquals, Action forceMembers, Action members) =>
+		public static async global::System.Threading.Tasks.Task Switch(this global::System.Threading.Tasks.Task<FluentAssertions.Equivalency.EqualityStrategy> equalityStrategy, global::System.Action @equals, global::System.Action forceEquals, global::System.Action forceMembers, global::System.Action members) =>
 		(await equalityStrategy.ConfigureAwait(false)).Switch(@equals, forceEquals, forceMembers, members);
 		
-		public static async Task Switch(this Task<FluentAssertions.Equivalency.EqualityStrategy> equalityStrategy, Func<Task> @equals, Func<Task> forceEquals, Func<Task> forceMembers, Func<Task> members) =>
+		public static async global::System.Threading.Tasks.Task Switch(this global::System.Threading.Tasks.Task<FluentAssertions.Equivalency.EqualityStrategy> equalityStrategy, global::System.Func<global::System.Threading.Tasks.Task> @equals, global::System.Func<global::System.Threading.Tasks.Task> forceEquals, global::System.Func<global::System.Threading.Tasks.Task> forceMembers, global::System.Func<global::System.Threading.Tasks.Task> members) =>
 		await (await equalityStrategy.ConfigureAwait(false)).Switch(@equals, forceEquals, forceMembers, members).ConfigureAwait(false);
 	}
 }

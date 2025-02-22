@@ -1,4 +1,5 @@
-﻿using FunicularSwitch.Generators.Common;
+﻿using CommunityToolkit.Mvvm.SourceGenerators.Helpers;
+using FunicularSwitch.Generators.Common;
 
 namespace FunicularSwitch.Generators.Generation;
 
@@ -225,8 +226,24 @@ public static class BuildExtensions
     {
 	    var typeNameWithoutOuter = name.Split('.').Last();
         var parameterName = typeNameWithoutOuter.FirstToLower();
-        return parameterName.IsAnyKeyWord() ? $"@{parameterName}" : parameterName;
+        return PrefixAtIfKeyword(parameterName);
     }
 
-    public static string ToMatchExtensionFilename(this string fullTypeName) => $"{fullTypeName.Replace(".", "")}MatchExtension.g.cs";
+    public static string PrefixAtIfKeyword(this string parameterName) => parameterName.IsAnyKeyWord() ? $"@{parameterName}" : parameterName;
+
+    public static string TrimBaseTypeName(this string value, string baseTypeName)
+    {
+        if (value.Length <= baseTypeName.Length)
+            return value;
+
+        if (value.EndsWith(baseTypeName))
+            value = value.Substring(0, value.Length - baseTypeName.Length);
+        else if (value.StartsWith(baseTypeName))
+            value = value.Substring(baseTypeName.Length);
+        return value;
+    }
+
+    public static string ToMatchExtensionFilename(this string fullTypeName, EquatableArray<string> typeParameters) => $"{fullTypeName.Replace(".", "")}{RoslynExtensions.FormatTypeParameterForFileName(typeParameters)}MatchExtension.g.cs";
+
+    
 }

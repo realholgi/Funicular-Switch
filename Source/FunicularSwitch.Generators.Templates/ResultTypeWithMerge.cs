@@ -1,9 +1,5 @@
 ﻿#nullable enable
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+using global::System.Linq;
 //additional using directives
 
 namespace FunicularSwitch.Generators.Templates
@@ -16,27 +12,27 @@ namespace FunicularSwitch.Generators.Templates
 
     public static partial class MyResultExtension
     {
-        public static MyResult<IReadOnlyCollection<T1>> Map<T, T1>(this IEnumerable<MyResult<T>> results,
-            Func<T, T1> map) =>
+        public static MyResult<global::System.Collections.Generic.IReadOnlyCollection<T1>> Map<T, T1>(this global::System.Collections.Generic.IEnumerable<MyResult<T>> results,
+            global::System.Func<T, T1> map) =>
             results.Select(r => r.Map(map)).Aggregate();
 
-        public static MyResult<IReadOnlyCollection<T1>> Bind<T, T1>(this IEnumerable<MyResult<T>> results,
-            Func<T, MyResult<T1>> bind) =>
+        public static MyResult<global::System.Collections.Generic.IReadOnlyCollection<T1>> Bind<T, T1>(this global::System.Collections.Generic.IEnumerable<MyResult<T>> results,
+            global::System.Func<T, MyResult<T1>> bind) =>
             results.Select(r => r.Bind(bind)).Aggregate();
 
-        public static MyResult<IReadOnlyCollection<T1>> Bind<T, T1>(this MyResult<T> result,
-            Func<T, IEnumerable<MyResult<T1>>> bindMany) =>
+        public static MyResult<global::System.Collections.Generic.IReadOnlyCollection<T1>> Bind<T, T1>(this MyResult<T> result,
+            global::System.Func<T, global::System.Collections.Generic.IEnumerable<MyResult<T1>>> bindMany) =>
             result.Map(ok => bindMany(ok).Aggregate()).Flatten();
 
-        public static MyResult<T1> Bind<T, T1>(this IEnumerable<MyResult<T>> results,
-            Func<IEnumerable<T>, MyResult<T1>> bind) =>
+        public static MyResult<T1> Bind<T, T1>(this global::System.Collections.Generic.IEnumerable<MyResult<T>> results,
+            global::System.Func<global::System.Collections.Generic.IEnumerable<T>, MyResult<T1>> bind) =>
             results.Aggregate().Bind(bind);
         
-        public static MyResult<IReadOnlyCollection<T>> Aggregate<T>(this IEnumerable<MyResult<T>> results)
+        public static MyResult<global::System.Collections.Generic.IReadOnlyCollection<T>> Aggregate<T>(this global::System.Collections.Generic.IEnumerable<MyResult<T>> results)
         {
             var isError = false;
             MyError aggregated = default!;
-            var oks = new List<T>();
+            var oks = new global::System.Collections.Generic.List<T>();
             foreach (var result in results)
             {
                 result.Match(
@@ -50,31 +46,31 @@ namespace FunicularSwitch.Generators.Templates
             }
 
             return isError
-                ? MyResult.Error<IReadOnlyCollection<T>>(aggregated)
-                : MyResult.Ok<IReadOnlyCollection<T>>(oks);
+                ? MyResult.Error<global::System.Collections.Generic.IReadOnlyCollection<T>>(aggregated)
+                : MyResult.Ok<global::System.Collections.Generic.IReadOnlyCollection<T>>(oks);
         }
 
-        public static async Task<MyResult<IReadOnlyCollection<T>>> Aggregate<T>(
-            this Task<IEnumerable<MyResult<T>>> results)
+        public static async global::System.Threading.Tasks.Task<MyResult<global::System.Collections.Generic.IReadOnlyCollection<T>>> Aggregate<T>(
+            this global::System.Threading.Tasks.Task<global::System.Collections.Generic.IEnumerable<MyResult<T>>> results)
             => (await results.ConfigureAwait(false))
                 .Aggregate();
 
-        public static async Task<MyResult<IReadOnlyCollection<T>>> Aggregate<T>(
-            this IEnumerable<Task<MyResult<T>>> results)
-            => (await Task.WhenAll(results.Select(e => e)).ConfigureAwait(false))
+        public static async global::System.Threading.Tasks.Task<MyResult<global::System.Collections.Generic.IReadOnlyCollection<T>>> Aggregate<T>(
+            this global::System.Collections.Generic.IEnumerable<global::System.Threading.Tasks.Task<MyResult<T>>> results)
+            => (await global::System.Threading.Tasks.Task.WhenAll(results.Select(e => e)).ConfigureAwait(false))
                 .Aggregate();
 
-        public static async Task<MyResult<IReadOnlyCollection<T>>> AggregateMany<T>(
-            this IEnumerable<Task<IEnumerable<MyResult<T>>>> results)
-            => (await Task.WhenAll(results.Select(e => e)).ConfigureAwait(false))
+        public static async global::System.Threading.Tasks.Task<MyResult<global::System.Collections.Generic.IReadOnlyCollection<T>>> AggregateMany<T>(
+            this global::System.Collections.Generic.IEnumerable<global::System.Threading.Tasks.Task<global::System.Collections.Generic.IEnumerable<MyResult<T>>>> results)
+            => (await global::System.Threading.Tasks.Task.WhenAll(results.Select(e => e)).ConfigureAwait(false))
                 .SelectMany(e => e)
                 .Aggregate();
 
         //generated aggregate extension methods
 
-        public static MyResult<T> FirstOk<T>(this IEnumerable<MyResult<T>> results, Func<MyError> onEmpty)
+        public static MyResult<T> FirstOk<T>(this global::System.Collections.Generic.IEnumerable<MyResult<T>> results, global::System.Func<MyError> onEmpty)
         {
-            var errors = new List<MyError>();
+            var errors = new global::System.Collections.Generic.List<MyError>();
             foreach (var result in results)
             {
                 if (result is MyResult<T>.Error_ e)
@@ -89,24 +85,24 @@ namespace FunicularSwitch.Generators.Templates
             return MyResult.Error<T>(MergeErrors(errors));
         }
 
-        public static async Task<MyResult<IReadOnlyCollection<T>>> Aggregate<T>(
-            this IEnumerable<Task<MyResult<T>>> results,
+        public static async global::System.Threading.Tasks.Task<MyResult<global::System.Collections.Generic.IReadOnlyCollection<T>>> Aggregate<T>(
+            this global::System.Collections.Generic.IEnumerable<global::System.Threading.Tasks.Task<MyResult<T>>> results,
             int maxDegreeOfParallelism)
             => (await results.SelectAsync(e => e, maxDegreeOfParallelism).ConfigureAwait(false))
                 .Aggregate();
 
-        public static async Task<MyResult<IReadOnlyCollection<T>>> AggregateMany<T>(
-            this IEnumerable<Task<IEnumerable<MyResult<T>>>> results,
+        public static async global::System.Threading.Tasks.Task<MyResult<global::System.Collections.Generic.IReadOnlyCollection<T>>> AggregateMany<T>(
+            this global::System.Collections.Generic.IEnumerable<global::System.Threading.Tasks.Task<global::System.Collections.Generic.IEnumerable<MyResult<T>>>> results,
             int maxDegreeOfParallelism)
             => (await results.SelectAsync(e => e, maxDegreeOfParallelism).ConfigureAwait(false))
                 .SelectMany(e => e)
                 .Aggregate();
 
-        static async Task<TOut[]> SelectAsync<T, TOut>(this IEnumerable<T> items, Func<T, Task<TOut>> selector, int maxDegreeOfParallelism)
+        static async global::System.Threading.Tasks.Task<TOut[]> SelectAsync<T, TOut>(this global::System.Collections.Generic.IEnumerable<T> items, global::System.Func<T, global::System.Threading.Tasks.Task<TOut>> selector, int maxDegreeOfParallelism)
         {
-            using (var throttler = new SemaphoreSlim(maxDegreeOfParallelism, maxDegreeOfParallelism))
+            using (var throttler = new global::System.Threading.SemaphoreSlim(maxDegreeOfParallelism, maxDegreeOfParallelism))
             {
-                return await Task.WhenAll(items.Select(async item =>
+                return await global::System.Threading.Tasks.Task.WhenAll(items.Select(async item =>
                 {
                     // ReSharper disable once AccessToDisposedClosure
                     await throttler.WaitAsync().ConfigureAwait(false);
@@ -123,32 +119,42 @@ namespace FunicularSwitch.Generators.Templates
             }
         }
 
-        public static MyResult<IReadOnlyCollection<T>> AllOk<T>(this IEnumerable<T> candidates, Func<T, IEnumerable<MyError>> validate) =>
+        public static MyResult<global::System.Collections.Generic.IReadOnlyCollection<T>> AllOk<T>(this global::System.Collections.Generic.IEnumerable<T> candidates, global::System.Func<T, global::System.Collections.Generic.IEnumerable<MyError>> validate) =>
             candidates
                 .Select(c => c.Validate(validate))
                 .Aggregate();
 
-        public static MyResult<IReadOnlyCollection<T>> AllOk<T>(this IEnumerable<MyResult<T>> candidates,
-            Func<T, IEnumerable<MyError>> validate) =>
+        public static MyResult<global::System.Collections.Generic.IReadOnlyCollection<T>> AllOk<T>(this global::System.Collections.Generic.IEnumerable<MyResult<T>> candidates,
+            global::System.Func<T, global::System.Collections.Generic.IEnumerable<MyError>> validate) =>
             candidates
                 .Bind(items => items.AllOk(validate));
 
-        public static MyResult<T> Validate<T>(this MyResult<T> item, Func<T, IEnumerable<MyError>> validate) => item.Bind(i => i.Validate(validate));
+        public static MyResult<T> Validate<T>(this MyResult<T> item, global::System.Func<T, global::System.Collections.Generic.IEnumerable<MyError>> validate) => item.Bind(i => i.Validate(validate));
 
-        public static MyResult<T> Validate<T>(this T item, Func<T, IEnumerable<MyError>> validate)
+        public static MyResult<T> Validate<T>(this T item, global::System.Func<T, global::System.Collections.Generic.IEnumerable<MyError>> validate)
         {
-            var errors = validate(item).ToList();
-            return errors.Count > 0 ? MyResult.Error<T>(MergeErrors(errors)) : item;
+	        try
+	        {
+		        var errors = validate(item).ToList();
+		        return errors.Count > 0 ? MyResult.Error<T>(MergeErrors(errors)) : item;
+	        }
+	        // ReSharper disable once RedundantCatchClause
+#pragma warning disable CS0168 // Variable is declared but never used
+	        catch (global::System.Exception e)
+#pragma warning restore CS0168 // Variable is declared but never used
+	        {
+		        throw; //createGenericErrorResult
+	        }
         }
 
-        public static MyResult<T> FirstOk<T>(this IEnumerable<T> candidates, Func<T, IEnumerable<MyError>> validate, Func<MyError> onEmpty) =>
+        public static MyResult<T> FirstOk<T>(this global::System.Collections.Generic.IEnumerable<T> candidates, global::System.Func<T, global::System.Collections.Generic.IEnumerable<MyError>> validate, global::System.Func<MyError> onEmpty) =>
             candidates
                 .Select(r => r.Validate(validate))
                 .FirstOk(onEmpty);
 
         #region helpers
 
-        static MyError MergeErrors(IEnumerable<MyError> errors)
+        static MyError MergeErrors(global::System.Collections.Generic.IEnumerable<MyError> errors)
         {
             var first = true;
             MyError aggregated = default!;

@@ -1,38 +1,35 @@
 ﻿#pragma warning disable 1591
-using System;
-using System.Threading.Tasks;
-
 namespace FunicularSwitch.Generators.Consumer
 {
 	internal static partial class Error_UnionCasesMatchExtension
 	{
-		public static T Match<T>(this FunicularSwitch.Generators.Consumer.Error.UnionCases unionCases, Func<T> generic, Func<T> notFound, Func<T> notAuthorized, Func<T> aggregated) =>
+		public static T Match<T>(this FunicularSwitch.Generators.Consumer.Error.UnionCases unionCases, global::System.Func<T> generic, global::System.Func<T> notFound, global::System.Func<T> notAuthorized, global::System.Func<T> aggregated) =>
 		unionCases switch
 		{
 			FunicularSwitch.Generators.Consumer.Error.UnionCases.Generic => generic(),
 			FunicularSwitch.Generators.Consumer.Error.UnionCases.NotFound => notFound(),
 			FunicularSwitch.Generators.Consumer.Error.UnionCases.NotAuthorized => notAuthorized(),
 			FunicularSwitch.Generators.Consumer.Error.UnionCases.Aggregated => aggregated(),
-			_ => throw new ArgumentException($"Unknown enum value from FunicularSwitch.Generators.Consumer.Error.UnionCases: {unionCases.GetType().Name}")
+			_ => throw new global::System.ArgumentException($"Unknown enum value from FunicularSwitch.Generators.Consumer.Error.UnionCases: {unionCases.GetType().Name}")
 		};
 		
-		public static Task<T> Match<T>(this FunicularSwitch.Generators.Consumer.Error.UnionCases unionCases, Func<Task<T>> generic, Func<Task<T>> notFound, Func<Task<T>> notAuthorized, Func<Task<T>> aggregated) =>
+		public static global::System.Threading.Tasks.Task<T> Match<T>(this FunicularSwitch.Generators.Consumer.Error.UnionCases unionCases, global::System.Func<global::System.Threading.Tasks.Task<T>> generic, global::System.Func<global::System.Threading.Tasks.Task<T>> notFound, global::System.Func<global::System.Threading.Tasks.Task<T>> notAuthorized, global::System.Func<global::System.Threading.Tasks.Task<T>> aggregated) =>
 		unionCases switch
 		{
 			FunicularSwitch.Generators.Consumer.Error.UnionCases.Generic => generic(),
 			FunicularSwitch.Generators.Consumer.Error.UnionCases.NotFound => notFound(),
 			FunicularSwitch.Generators.Consumer.Error.UnionCases.NotAuthorized => notAuthorized(),
 			FunicularSwitch.Generators.Consumer.Error.UnionCases.Aggregated => aggregated(),
-			_ => throw new ArgumentException($"Unknown enum value from FunicularSwitch.Generators.Consumer.Error.UnionCases: {unionCases.GetType().Name}")
+			_ => throw new global::System.ArgumentException($"Unknown enum value from FunicularSwitch.Generators.Consumer.Error.UnionCases: {unionCases.GetType().Name}")
 		};
 		
-		public static async Task<T> Match<T>(this Task<FunicularSwitch.Generators.Consumer.Error.UnionCases> unionCases, Func<T> generic, Func<T> notFound, Func<T> notAuthorized, Func<T> aggregated) =>
+		public static async global::System.Threading.Tasks.Task<T> Match<T>(this global::System.Threading.Tasks.Task<FunicularSwitch.Generators.Consumer.Error.UnionCases> unionCases, global::System.Func<T> generic, global::System.Func<T> notFound, global::System.Func<T> notAuthorized, global::System.Func<T> aggregated) =>
 		(await unionCases.ConfigureAwait(false)).Match(generic, notFound, notAuthorized, aggregated);
 		
-		public static async Task<T> Match<T>(this Task<FunicularSwitch.Generators.Consumer.Error.UnionCases> unionCases, Func<Task<T>> generic, Func<Task<T>> notFound, Func<Task<T>> notAuthorized, Func<Task<T>> aggregated) =>
+		public static async global::System.Threading.Tasks.Task<T> Match<T>(this global::System.Threading.Tasks.Task<FunicularSwitch.Generators.Consumer.Error.UnionCases> unionCases, global::System.Func<global::System.Threading.Tasks.Task<T>> generic, global::System.Func<global::System.Threading.Tasks.Task<T>> notFound, global::System.Func<global::System.Threading.Tasks.Task<T>> notAuthorized, global::System.Func<global::System.Threading.Tasks.Task<T>> aggregated) =>
 		await (await unionCases.ConfigureAwait(false)).Match(generic, notFound, notAuthorized, aggregated).ConfigureAwait(false);
 		
-		public static void Switch(this FunicularSwitch.Generators.Consumer.Error.UnionCases unionCases, Action generic, Action notFound, Action notAuthorized, Action aggregated)
+		public static void Switch(this FunicularSwitch.Generators.Consumer.Error.UnionCases unionCases, global::System.Action generic, global::System.Action notFound, global::System.Action notAuthorized, global::System.Action aggregated)
 		{
 			switch (unionCases)
 			{
@@ -49,11 +46,11 @@ namespace FunicularSwitch.Generators.Consumer
 					aggregated();
 					break;
 				default:
-					throw new ArgumentException($"Unknown enum value from FunicularSwitch.Generators.Consumer.Error.UnionCases: {unionCases.GetType().Name}");
+					throw new global::System.ArgumentException($"Unknown enum value from FunicularSwitch.Generators.Consumer.Error.UnionCases: {unionCases.GetType().Name}");
 			}
 		}
 		
-		public static async Task Switch(this FunicularSwitch.Generators.Consumer.Error.UnionCases unionCases, Func<Task> generic, Func<Task> notFound, Func<Task> notAuthorized, Func<Task> aggregated)
+		public static async global::System.Threading.Tasks.Task Switch(this FunicularSwitch.Generators.Consumer.Error.UnionCases unionCases, global::System.Func<global::System.Threading.Tasks.Task> generic, global::System.Func<global::System.Threading.Tasks.Task> notFound, global::System.Func<global::System.Threading.Tasks.Task> notAuthorized, global::System.Func<global::System.Threading.Tasks.Task> aggregated)
 		{
 			switch (unionCases)
 			{
@@ -70,14 +67,14 @@ namespace FunicularSwitch.Generators.Consumer
 					await aggregated().ConfigureAwait(false);
 					break;
 				default:
-					throw new ArgumentException($"Unknown enum value from FunicularSwitch.Generators.Consumer.Error.UnionCases: {unionCases.GetType().Name}");
+					throw new global::System.ArgumentException($"Unknown enum value from FunicularSwitch.Generators.Consumer.Error.UnionCases: {unionCases.GetType().Name}");
 			}
 		}
 		
-		public static async Task Switch(this Task<FunicularSwitch.Generators.Consumer.Error.UnionCases> unionCases, Action generic, Action notFound, Action notAuthorized, Action aggregated) =>
+		public static async global::System.Threading.Tasks.Task Switch(this global::System.Threading.Tasks.Task<FunicularSwitch.Generators.Consumer.Error.UnionCases> unionCases, global::System.Action generic, global::System.Action notFound, global::System.Action notAuthorized, global::System.Action aggregated) =>
 		(await unionCases.ConfigureAwait(false)).Switch(generic, notFound, notAuthorized, aggregated);
 		
-		public static async Task Switch(this Task<FunicularSwitch.Generators.Consumer.Error.UnionCases> unionCases, Func<Task> generic, Func<Task> notFound, Func<Task> notAuthorized, Func<Task> aggregated) =>
+		public static async global::System.Threading.Tasks.Task Switch(this global::System.Threading.Tasks.Task<FunicularSwitch.Generators.Consumer.Error.UnionCases> unionCases, global::System.Func<global::System.Threading.Tasks.Task> generic, global::System.Func<global::System.Threading.Tasks.Task> notFound, global::System.Func<global::System.Threading.Tasks.Task> notAuthorized, global::System.Func<global::System.Threading.Tasks.Task> aggregated) =>
 		await (await unionCases.ConfigureAwait(false)).Switch(generic, notFound, notAuthorized, aggregated).ConfigureAwait(false);
 	}
 }

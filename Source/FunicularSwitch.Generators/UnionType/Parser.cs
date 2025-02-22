@@ -1,6 +1,6 @@
 ﻿using System.Collections.Immutable;
 using FunicularSwitch.Generators.Common;
-using FunicularSwitch.Generators.ResultType;
+using FunicularSwitch.Generators.Generation;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -9,96 +9,127 @@ namespace FunicularSwitch.Generators.UnionType;
 
 static class Parser
 {
-    public static IEnumerable<UnionTypeSchema> GetUnionTypes(Compilation compilation,
-        ImmutableArray<BaseTypeDeclarationSyntax> unionTypeClasses, Action<Diagnostic> reportDiagnostic,
-        CancellationToken cancellationToken) =>
-        unionTypeClasses
-	        .Select(unionTypeClass =>
-        {
-            var semanticModel = compilation.GetSemanticModel(unionTypeClass.SyntaxTree);
-            var unionTypeSymbol = semanticModel.GetDeclaredSymbol(unionTypeClass);
-
-            if (unionTypeSymbol == null) //TODO: report diagnostics
-	            return null;
-
-            var fullTypeName = unionTypeSymbol.FullTypeNameWithNamespace();
-            var acc = unionTypeSymbol.DeclaredAccessibility;
-            if (acc is Accessibility.Private or Accessibility.Protected)
-            {
-	            reportDiagnostic(Diagnostics.UnionTypeIsNotAccessible($"{fullTypeName} needs at least internal accessibility", unionTypeClass.GetLocation()));
-	            return null;
-            }
-            
-            var attribute = unionTypeClass.AttributeLists
-                .Select(l => l.Attributes.First(a => a.GetAttributeFullName(semanticModel) == UnionTypeGenerator.UnionTypeAttribute))
-                .First();
-
-            var caseOrder = TryGetCaseOrder(attribute, reportDiagnostic);
-
-            var fullNamespace = unionTypeSymbol.GetFullNamespace();
-            if (unionTypeClass is EnumDeclarationSyntax enumDeclarationSyntax)
-            {
-                var fullTypeNameWithNamespace = unionTypeSymbol.FullTypeNameWithNamespace();
-                var unionCases = enumDeclarationSyntax.Members
-                    .Select(m => new DerivedType( $"{fullTypeNameWithNamespace}.{m.Identifier.Text}", m.Identifier.Text));
-                if (caseOrder == CaseOrder.Alphabetic)
-                {
-                    unionCases = unionCases.OrderBy(m => m.FullTypeName);
-                }
-                
-                return new UnionTypeSchema(
-                    Namespace: fullNamespace,
-                    TypeName: unionTypeSymbol.FullTypeName(),
-                    FullTypeName: fullTypeName,
-                    Cases:  unionCases
-                        .ToImmutableArray(),
-                    acc is Accessibility.NotApplicable or Accessibility.Internal,
-                    true
-                );
-            }
-
-            var derivedTypes = compilation.SyntaxTrees.SelectMany(t =>
-            {
-                var root = t.GetRoot(cancellationToken);
-                var treeSemanticModel = t != unionTypeClass.SyntaxTree ? compilation.GetSemanticModel(t) : semanticModel;
-                
-                return FindConcreteDerivedTypesWalker.Get(root, unionTypeSymbol, treeSemanticModel);
-            });
-
-            return new UnionTypeSchema(
-                Namespace: fullNamespace,
-                TypeName: unionTypeSymbol.Name,
-                FullTypeName: fullTypeName,
-                Cases: ToOrderedCases(caseOrder, derivedTypes, reportDiagnostic)
-                    .ToImmutableArray(),
-                acc is Accessibility.NotApplicable or Accessibility.Internal,
-                false
-            );
-
-        })
-	        .Where(unionTypeClass => unionTypeClass != null)!;
-
-    static CaseOrder TryGetCaseOrder(AttributeSyntax attribute, Action<Diagnostic> reportDiagnostics)
+    public static GenerationResult<UnionTypeSchema> GetUnionTypeSchema(Compilation compilation,
+        CancellationToken cancellationToken,
+        BaseTypeDeclarationSyntax unionTypeClass,
+        INamedTypeSymbol unionTypeSymbol,
+        AttributeData unionTypeAttribute)
     {
-        if ((attribute.ArgumentList?.Arguments.Count ?? 0) < 1)
-            return CaseOrder.Alphabetic;
+        var semanticModel = compilation.GetSemanticModel(unionTypeClass.SyntaxTree);
 
-        var expressionSyntax = attribute.ArgumentList?.Arguments[0].Expression;
-        if (expressionSyntax is not MemberAccessExpressionSyntax l)
+        var typeParameters = unionTypeClass.GetTypeParameterList();
+
+        var fullTypeName = unionTypeSymbol.FullTypeNameWithNamespace();
+        var fullTypeNameWithTypeParameters = fullTypeName + RoslynExtensions.FormatTypeParameters(typeParameters);
+        var acc = unionTypeSymbol.GetActualAccessibility();
+        if (acc is Accessibility.Private or Accessibility.Protected)
         {
-            //TODO: report diagnostics
-            return CaseOrder.Alphabetic;
+            var diag = Diagnostics.UnionTypeIsNotAccessible($"{fullTypeName} needs at least internal accessibility", unionTypeClass.GetLocation());
+            return Error(diag);
         }
-        
-        return (CaseOrder)Enum.Parse(typeof(CaseOrder), l.Name.ToString());
+
+        var caseOrder = unionTypeAttribute.GetEnumNamedArgument("CaseOrder", CaseOrder.Alphabetic);
+        var staticFactoryMethods = unionTypeAttribute.GetNamedArgument("StaticFactoryMethods", true);
+
+
+        var fullNamespace = unionTypeSymbol.GetFullNamespace();
+
+        var derivedTypes = compilation.SyntaxTrees.SelectMany(syntaxTree =>
+        {
+            var root = syntaxTree.GetRoot(cancellationToken);
+            var treeSemanticModel = syntaxTree != unionTypeClass.SyntaxTree ? compilation.GetSemanticModel(syntaxTree) : semanticModel;
+
+            return FindConcreteDerivedTypesWalker.Get(root, unionTypeSymbol, treeSemanticModel);
+        });
+
+
+        var isPartial = unionTypeClass.Modifiers.HasModifier(SyntaxKind.PartialKeyword)
+            && unionTypeSymbol.ContainingType == null; //for now do not generate factory methods for nested types, we could support that if all containing types are partial
+        var generateFactoryMethods = isPartial && staticFactoryMethods;
+
+        return
+            ToOrderedCases(caseOrder, derivedTypes, compilation, generateFactoryMethods, unionTypeSymbol.Name)
+                .Map(cases => new UnionTypeSchema(
+                    Namespace: fullNamespace,
+                    TypeName: unionTypeSymbol.Name,
+                    FullTypeName: fullTypeName,
+                    FullTypeNameWithTypeParameters: fullTypeNameWithTypeParameters,
+                    Cases: cases,
+                    TypeParameters: typeParameters,
+                    IsInternal: acc is Accessibility.NotApplicable or Accessibility.Internal,
+                    IsPartial: isPartial,
+                    TypeKind: unionTypeClass switch
+                    {
+                        RecordDeclarationSyntax => UnionTypeTypeKind.Record,
+                        InterfaceDeclarationSyntax => UnionTypeTypeKind.Interface,
+                        _ => UnionTypeTypeKind.Class
+                    },
+                    Modifiers: unionTypeClass.Modifiers.ToEquatableModifiers(),
+                    StaticFactoryInfo: generateFactoryMethods
+                        ? BuildFactoryInfo(unionTypeClass, compilation)
+                        : null
+                ));
+
+
+        static GenerationResult<UnionTypeSchema> Error(Diagnostic diagnostic) => GenerationResult<UnionTypeSchema>.Empty.AddDiagnostics(diagnostic);
     }
 
-    static IEnumerable<DerivedType> ToOrderedCases(CaseOrder caseOrder, IEnumerable<(INamedTypeSymbol symbol, BaseTypeDeclarationSyntax node, int? caseIndex, int numberOfConctreteBaseTypes)> derivedTypes, Action<Diagnostic> reportDiagnostic)
+    private static (string parameterName, string methodName) DeriveParameterAndStaticMethodName(string typeName,
+        string baseTypeName)
+    {
+        var candidates = ImmutableList<string>.Empty;
+        candidates = AddIfDiffersAndValid(typeName.TrimBaseTypeName(baseTypeName));
+        candidates = AddIfDiffersAndValid(typeName.Trim('_'));
+        candidates = candidates.Add(typeName);
+
+        var parameterName = candidates[0].FirstToLower().PrefixAtIfKeyword();
+        var methodName = candidates[0].FirstToUpper().PrefixAtIfKeyword();
+
+        return (parameterName, methodName);
+
+        ImmutableList<string> AddIfDiffersAndValid(string candidate) =>
+            DiffersAndValid(typeName, candidate)
+                ? candidates.Add(candidate)
+                : candidates;
+    }
+
+    static bool DiffersAndValid(string typeName, string candidate) =>
+        candidate != typeName
+        && !string.IsNullOrEmpty(candidate)
+        && char.IsLetter(candidate[0]);
+
+    static StaticFactoryMethodsInfo BuildFactoryInfo(BaseTypeDeclarationSyntax unionTypeClass, Compilation compilation)
+    {
+        var staticMethods = unionTypeClass.ChildNodes()
+            .OfType<MethodDeclarationSyntax>()
+            .Where(m => m.Modifiers.HasModifier(SyntaxKind.StaticKeyword))
+            .Select(m => m.ToMemberInfo(m.Name(), compilation))
+            .ToImmutableArray();
+
+        var staticFields = unionTypeClass.ChildNodes()
+            .SelectMany(s => s switch
+            {
+                FieldDeclarationSyntax f when f.Modifiers.HasModifier(SyntaxKind.StaticKeyword) => f.Declaration
+                    .Variables.Select(v => v.Identifier.Text),
+                PropertyDeclarationSyntax p when p.Modifiers.HasModifier(SyntaxKind.StaticKeyword) => new[]
+                {
+                    p.Name()
+                },
+                _ => Array.Empty<string>()
+            })
+            .ToImmutableArray();
+
+        return new(staticMethods, staticFields);
+    }
+
+    static GenerationResult<ImmutableArray<DerivedType>> ToOrderedCases(CaseOrder caseOrder,
+        IEnumerable<(INamedTypeSymbol symbol, BaseTypeDeclarationSyntax node, int? caseIndex, int
+            numberOfConctreteBaseTypes)> derivedTypes, Compilation compilation, bool getConstructors, string baseTypeName)
     {
         var ordered = derivedTypes.OrderByDescending(d => d.numberOfConctreteBaseTypes);
         ordered = caseOrder switch
         {
-            CaseOrder.Alphabetic => ordered.ThenBy(d => d.node.QualifiedName().Name),
+            CaseOrder.Alphabetic => ordered.ThenBy(d => d.node.QualifiedNameWithGenerics().Name),
             CaseOrder.AsDeclared => ordered.ThenBy(d => d.node.SyntaxTree.FilePath)
                 .ThenBy(d => d.node.Span.Start),
             CaseOrder.Explicit => ordered.ThenBy(d => d.caseIndex),
@@ -107,6 +138,8 @@ static class Parser
 
         var result = ordered.ToImmutableArray();
 
+        var errors = ImmutableArray<DiagnosticInfo>.Empty;
+
         switch (caseOrder)
         {
             case CaseOrder.Alphabetic:
@@ -114,14 +147,15 @@ static class Parser
                 foreach (var t in result.Where(r => r.caseIndex != null))
                 {
                     var message = $"Explicit case index on {t.node.Name()} is ignored, because CaseOrder on UnionTypeAttribute is {caseOrder}. Set it CaseOrder.Explicit for explicit ordering.";
-                    reportDiagnostic(Diagnostics.MisleadingCaseOrdering(message, t.node.GetLocation()));
+                    var diagnostic = Diagnostics.MisleadingCaseOrdering(message, t.node.GetLocation());
+                    errors = errors.Add(diagnostic);
                 }
                 break;
             case CaseOrder.Explicit:
                 foreach (var t in result.Where(r => r.caseIndex == null))
                 {
                     var message = $"Missing case index on {t.node.Name()}. Please add UnionCaseAttribute for explicit case ordering.";
-                    reportDiagnostic(Diagnostics.CaseIndexNotSet(message, t.node.GetLocation()));
+                    errors = errors.Add(Diagnostics.CaseIndexNotSet(message, t.node.GetLocation()));
                 }
 
                 foreach (var group in result.Where(r => r.caseIndex != null)
@@ -129,21 +163,56 @@ static class Parser
                              .Where(g => g.Count() > 1))
                 {
                     var message = $"Cases {group.Select(g => g.node.Name()).ToSeparatedString()} define the same case index. Order is not guaranteed.";
-                    reportDiagnostic(Diagnostics.AmbiguousCaseIndex(message, group.First().node.GetLocation()));
+                    errors = errors.Add(Diagnostics.AmbiguousCaseIndex(message, group.First().node.GetLocation()));
                 }
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(caseOrder), caseOrder, null);
         }
 
-        return result.Select(d =>
+        var derived = result.Select(d =>
         {
-            var qualifiedTypeName = d.node.QualifiedName();
+            var qualifiedTypeName = d.node.QualifiedNameWithGenerics();
             var fullNamespace = d.symbol.GetFullNamespace();
+            var constructors = ImmutableArray<CallableMemberInfo>.Empty;
+            var requiredMembers = ImmutableArray<PropertyOrFieldInfo>.Empty;
+
+            if (getConstructors)
+            {
+                constructors = constructors.AddRange(d.node
+                    .ChildNodes()
+                    .OfType<ConstructorDeclarationSyntax>()
+                    .Select(c => c.ToMemberInfo(c.Identifier.Text, compilation)));
+
+                //primary constructors
+                if (d.node is TypeDeclarationSyntax { ParameterList: not null } typeDeclaration)
+                    constructors = constructors.Add(
+                        new(
+                            Name: d.node.Name(),
+                            Modifiers: d.node.Modifiers.ToEquatableModifiers(),
+                            Parameters: typeDeclaration.ParameterList.Parameters
+                                .Select(p => p.ToParameterInfo(compilation))
+                                .ToImmutableArray())
+                    );
+
+                requiredMembers = requiredMembers.AddRange(d.node.ChildNodes()
+                    .OfType<MemberDeclarationSyntax>()
+                    .Where(m => m.Modifiers.HasRequiredModifier())
+                    .Select(m => m.ToPropertyOrFieldInfo(compilation)));
+            }
+
+            var (parameterName, staticMethodName) =
+                DeriveParameterAndStaticMethodName(qualifiedTypeName.Name, baseTypeName);
+
             return new DerivedType(
                 fullTypeName: $"{(fullNamespace != null ? $"{fullNamespace}." : "")}{qualifiedTypeName}",
-                typeName: qualifiedTypeName.Name);
-        });
+                constructors: constructors,
+                requiredMembers: requiredMembers,
+                parameterName: parameterName,
+                staticFactoryMethodName: staticMethodName);
+        }).ToImmutableArray();
+
+        return new(derived, errors, true);
     }
 }
 
@@ -185,6 +254,12 @@ class FindConcreteDerivedTypesWalker : CSharpSyntaxWalker
         base.VisitRecordDeclaration(node);
     }
 
+    public override void VisitStructDeclaration(StructDeclarationSyntax node)
+    {
+        CheckIsConcreteDerived(node);
+        base.VisitStructDeclaration(node);
+    }
+
     void CheckIsConcreteDerived(BaseTypeDeclarationSyntax node)
     {
         var isAbstract = node.Modifiers.Any(m => m.Text.ToString() == "abstract");
@@ -194,9 +269,9 @@ class FindConcreteDerivedTypesWalker : CSharpSyntaxWalker
             if (symbol != null && (symbol.InheritsFrom(m_BaseClass) || symbol.Implements(m_BaseClass)))
             {
                 var attribute = node.AttributeLists
-                    .Select(l => l.Attributes.First(a => a.GetAttributeFullName(m_SemanticModel) == UnionTypeGenerator.UnionCaseAttribute))
-                    .FirstOrDefault();
-                
+                    .SelectMany(l => l.Attributes)
+                    .FirstOrDefault(a => a.GetAttributeFullName(m_SemanticModel) == UnionTypeGenerator.UnionCaseAttribute);
+
                 var caseIndex = TryGetCaseIndex(attribute);
 
                 m_DerivedClasses.Add((symbol, node, caseIndex));

@@ -1,7 +1,6 @@
 ﻿using System.Collections.Immutable;
 using FunicularSwitch.Generators.Common;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace FunicularSwitch.Generators.ResultType;
 
@@ -11,50 +10,65 @@ static class Generator
     const string TemplateResultTypeName = "MyResult";
     const string TemplateErrorTypeName = "MyError";
 
-    public static IEnumerable<(string filename, string source)> Emit(ResultTypeSchema resultTypeSchema, Action<Diagnostic> reportDiagnostic, CancellationToken cancellationToken)
+    public static IEnumerable<(string filename, string source)> Emit(
+        ResultTypeSchema resultTypeSchema, 
+        SymbolWrapper<INamedTypeSymbol> defaultErrorType,
+        MergeMethod? mergeErrorMethod,
+        ExceptionToErrorMethod? exceptionToErrorMethod,
+        Action<Diagnostic> reportDiagnostic, 
+        CancellationToken cancellationToken)
     {
-	    var resultTypeName = resultTypeSchema.ResultType.Identifier.ToString();
-        var resultTypeNamespace = resultTypeSchema.ResultType.GetContainingNamespace();
+	    var resultTypeName = resultTypeSchema.ResultTypeName.Name;
+        var resultTypeNamespace = resultTypeSchema.ResultTypeNamespace;
         if (resultTypeNamespace == null)
         {
-	        reportDiagnostic(Diagnostics.ResultTypeInGlobalNamespace($"Result type {resultTypeName} is placed in global namespace, this is not supported. Please put {resultTypeName} into non empty namespace.", resultTypeSchema.ResultType.GetLocation()));
+	        reportDiagnostic(Diagnostics.ResultTypeInGlobalNamespace($"Result type {resultTypeName} is placed in global namespace, this is not supported. Please put {resultTypeName} into non empty namespace.", resultTypeSchema.ResultTypeLocation?.ToLocation() ?? Location.None));
 	        yield break;
         }
-        
-        var publicModifier = resultTypeSchema.ResultType.Modifiers.FirstOrDefault(t => t.Text == SyntaxFactory.Token(SyntaxKind.PublicKeyword).Text);
-        var isValueType = resultTypeSchema.ErrorType.IsValueType;
-        var errorTypeNamespace = resultTypeSchema.ErrorType.GetFullNamespace();
 
-        string Replace(string code, IReadOnlyCollection<string> additionalNamespaces)
+        var errorTypeSymbol = resultTypeSchema.ErrorType ?? defaultErrorType;
+        var isValueType = errorTypeSymbol.Symbol.IsValueType;
+        var errorTypeNamespace = errorTypeSymbol.Symbol.GetFullNamespace();
+
+        string Replace(string code, IReadOnlyCollection<string> additionalNamespaces, string genericTypeParameterNameForHandleExceptions)
         {
 	        code = code
                 .Replace($"namespace {TemplateNamespace}", $"namespace {resultTypeNamespace}")
                 .Replace(TemplateResultTypeName, resultTypeName)
-                .Replace(TemplateErrorTypeName, resultTypeSchema.ErrorType.Name);
+                .Replace(TemplateErrorTypeName, errorTypeSymbol.Symbol.Name);
 
-            if (publicModifier == default)
+            if (resultTypeSchema.IsInternal)
                 code = code
                     .Replace("public abstract partial", "abstract partial")
                     .Replace("public static partial", "static partial");
 
-            if (additionalNamespaces.Count > 0)
-                code = code
-                    .Replace("//additional using directives", additionalNamespaces.Distinct().Select(a => $"using {a};").ToSeparatedString(Environment.NewLine));
+            code = code
+                .Replace("//additional using directives", additionalNamespaces.Distinct().Select(a => $"using {a};").ToSeparatedString("\n"));
+
+            if (exceptionToErrorMethod != null)
+            {
+	            code = code.Replace("throw; //createGenericErrorResult",
+		            $"return {resultTypeName}.Error<{genericTypeParameterNameForHandleExceptions}>({exceptionToErrorMethod.FullMethodName}(e));");
+            }
 
             return code;
         }
 
-        var additionalNamespaces = new List<string> {"FunicularSwitch"};
-        if (errorTypeNamespace != resultTypeNamespace && errorTypeNamespace != "System" && errorTypeNamespace != null)
+        var additionalNamespaces = new List<string>();
+        if (errorTypeNamespace != resultTypeNamespace && errorTypeNamespace != null)
             additionalNamespaces.Add(errorTypeNamespace);
 
-        var generateFileHint = $"{resultTypeNamespace}.{resultTypeSchema.ResultType.QualifiedName()}";
+        var generateFileHint = $"{resultTypeNamespace}.{resultTypeSchema.ResultTypeName}";
 
-        yield return ($"{generateFileHint}.g.cs", Replace(Templates.ResultTypeTemplates.ResultType, additionalNamespaces));
+        var resultTypeImpl = Replace(Templates.ResultTypeTemplates.ResultType, additionalNamespaces, "T1");
 
-        if (resultTypeSchema.MergeMethod != null)
+        //resultTypeImpl = $"//Generator runs: {RunCount.Increase(generateFileHint)}\r\n" + resultTypeImpl;
+        
+        yield return ($"{generateFileHint}.g.cs", resultTypeImpl);
+
+        if (mergeErrorMethod != null)
         {
-            var mergeMethodNamespace = resultTypeSchema.MergeMethod.Match(staticMerge: m => m.Namespace, errorTypeMember: _ => "");
+            var mergeMethodNamespace = mergeErrorMethod.Match(staticMerge: m => m.Namespace, errorTypeMember: _ => "");
             if (!string.IsNullOrEmpty(mergeMethodNamespace) && mergeMethodNamespace != resultTypeNamespace)
                 additionalNamespaces.Add(mergeMethodNamespace!);
 
@@ -62,8 +76,9 @@ static class Generator
                 Templates.ResultTypeTemplates.ResultTypeWithMerge
                     .Replace("//generated aggregate methods", GenerateAggregateMethods(10))
                     .Replace("//generated aggregate extension methods", GenerateAggregateExtensionMethods(10, isValueType))
-                    .Replace("Merge__MemberOrExtensionMethod", resultTypeSchema.MergeMethod.MethodName),
-                additionalNamespaces
+                    .Replace("Merge__MemberOrExtensionMethod", mergeErrorMethod.MethodName),
+                additionalNamespaces,
+                "T"
             );
 
             yield return ($"{generateFileHint}WithMerge.g.cs", mergeCode);
@@ -78,7 +93,7 @@ static class Generator
         Enumerable
             .Range(2, maxParameterCount - 2)
             .Select(generateMethods)
-            .ToSeparatedString(Environment.NewLine);
+            .ToSeparatedString("\n");
 
     static string MakeAggregateExtensionMethod(int typeParameterCount, bool isValueType)
     {
@@ -89,8 +104,8 @@ static class Generator
         var typeArgumentsWithResult = $"{typeArguments}, TResult";
 
         var parameterDeclarations = Expand(i => $"MyResult<T{i}> r{i}");
-        var taskParameterDeclarations = Expand(i => $"Task<MyResult<T{i}>> r{i}");
-        var parametersWithCombine = $"{parameterDeclarations}, Func<{typeArgumentsWithResult}> combine";
+        var taskParameterDeclarations = Expand(i => $"global::System.Threading.Tasks.Task<MyResult<T{i}>> r{i}");
+        var parametersWithCombine = $"{parameterDeclarations}, global::System.Func<{typeArgumentsWithResult}> combine";
 
         var okCheck = Expand(i => $"r{i} is MyResult<T{i}>.Ok_ ok{i}", " && ");
         var combineArguments = Expand(i => $"ok{i}.Value");
@@ -115,12 +130,12 @@ static class Generator
                 )!);
         }}
         
-        public static Task<MyResult<({typeArguments})>> Aggregate<{typeArguments}>(this {taskParameterDeclarations})
+        public static global::System.Threading.Tasks.Task<MyResult<({typeArguments})>> Aggregate<{typeArguments}>(this {taskParameterDeclarations})
             => Aggregate({resultArrayElements}, ({tupleArguments}) => ({tupleArguments}));
 
-        public static async Task<MyResult<TResult>> Aggregate<{typeArgumentsWithResult}>(this {taskParameterDeclarations}, Func<{typeArgumentsWithResult}> combine)            
+        public static async global::System.Threading.Tasks.Task<MyResult<TResult>> Aggregate<{typeArgumentsWithResult}>(this {taskParameterDeclarations}, global::System.Func<{typeArgumentsWithResult}> combine)            
         {{
-            await Task.WhenAll({resultArrayElements});
+            await global::System.Threading.Tasks.Task.WhenAll({resultArrayElements});
             return Aggregate({taskResultArrayElements}, combine);
         }}";
     }
@@ -132,16 +147,16 @@ static class Generator
 
         var typeParameters = Expand(i => $"T{i}");
         var parameterDeclarations = Expand(i => $"MyResult<T{i}> r{i}");
-        var taskParameterDeclarations = Expand(i => $"Task<MyResult<T{i}>> r{i}");
+        var taskParameterDeclarations = Expand(i => $"global::System.Threading.Tasks.Task<MyResult<T{i}>> r{i}");
         var parameters = Expand(i => $"r{i}");
 
         return $@"
         public static MyResult<({typeParameters})> Aggregate<{typeParameters}>({parameterDeclarations}) => MyResultExtension.Aggregate({parameters});
 
-        public static MyResult<TResult> Aggregate<{typeParameters}, TResult>({parameterDeclarations}, Func<{typeParameters}, TResult> combine) => MyResultExtension.Aggregate({parameters}, combine);
+        public static MyResult<TResult> Aggregate<{typeParameters}, TResult>({parameterDeclarations}, global::System.Func<{typeParameters}, TResult> combine) => MyResultExtension.Aggregate({parameters}, combine);
 
-        public static Task<MyResult<({typeParameters})>> Aggregate<{typeParameters}>({taskParameterDeclarations}) => MyResultExtension.Aggregate({parameters});
+        public static global::System.Threading.Tasks.Task<MyResult<({typeParameters})>> Aggregate<{typeParameters}>({taskParameterDeclarations}) => MyResultExtension.Aggregate({parameters});
 
-        public static Task<MyResult<TResult>> Aggregate<{typeParameters}, TResult>({taskParameterDeclarations}, Func<{typeParameters}, TResult> combine) => MyResultExtension.Aggregate({parameters}, combine);";
+        public static global::System.Threading.Tasks.Task<MyResult<TResult>> Aggregate<{typeParameters}, TResult>({taskParameterDeclarations}, global::System.Func<{typeParameters}, TResult> combine) => MyResultExtension.Aggregate({parameters}, combine);";
     }
 }

@@ -1,11 +1,13 @@
-﻿using FunicularSwitch.Generators.Common;
+﻿using System.Collections.Immutable;
+using CommunityToolkit.Mvvm.SourceGenerators.Helpers;
+using FunicularSwitch.Generators.Common;
 using Microsoft.CodeAnalysis;
 
 namespace FunicularSwitch.Generators.FluentAssertions.FluentAssertionMethods;
 
 internal static class Generator
 {
-    private const string TemplateNamespace = "FunicularSwitch.Generators.FluentAssertions.Templates";
+    public const string TemplateNamespace = "FunicularSwitch.Generators.FluentAssertions.Templates";
     private const string TemplateResultTypeName = "MyResult";
     private const string TemplateErrorTypeName = "MyErrorType";
     private const string TemplateUnionTypeName = "MyUnionType";
@@ -14,6 +16,7 @@ internal static class Generator
     private const string TemplateResultAssertionExtensions = "MyAssertionExtensions_Result";
     private const string TemplateUnionTypeAssertionsTypeName = "MyAssertions_UnionType";
     private const string TemplateUnionTypeAssertionExtensions = "MyAssertionExtensions_UnionType";
+    private const string TemplateUnionTypeTypeParameterList = "<TTypeParameters>";
     private const string TemplateFriendlyDerivedUnionTypeName = "FriendlyDerivedUnionTypeName";
     private const string TemplateAdditionalUsingDirectives = "//additional using directives";
 
@@ -24,7 +27,7 @@ internal static class Generator
     {
         var resultTypeNameFullName = resultTypeSchema.ResultType.FullTypeName().Replace('.', '_');
         var resultTypeFullNameWithNamespace = resultTypeSchema.ResultType.FullTypeNameWithNamespace();
-        var resultTypeNamespace = resultTypeSchema.ResultType.GetFullNamespace();
+        var resultTypeNamespace = resultTypeSchema.ResultType.GetFullNamespace()!;
 
         var errorTypeNameFullName = resultTypeSchema.ErrorType?.FullTypeNameWithNamespace() ?? typeof(string).FullName;
 
@@ -44,7 +47,7 @@ internal static class Generator
                             .Append(resultTypeNamespace)
                             .Distinct()
                             .Select(a => $"using {a};")
-                            .ToSeparatedString(Environment.NewLine));
+                            .ToSeparatedString("\n"));
             return code;
         }
 
@@ -64,24 +67,34 @@ internal static class Generator
     {
         var unionTypeFullName = unionTypeSchema.UnionTypeBaseType.FullTypeName().Replace('.', '_');
         var unionTypeFullNameWithNamespace = unionTypeSchema.UnionTypeBaseType.FullTypeNameWithNamespace();
+        var unionTypeFullNameWithNamespaceAndGenerics = unionTypeSchema.UnionTypeBaseType.FullTypeNameWithNamespaceAndGenerics();
+        EquatableArray<string> typeParameters = unionTypeSchema.UnionTypeBaseType.TypeParameters
+            .Select(t => t.Name).ToImmutableArray();
         var unionTypeNamespace = unionTypeSchema.UnionTypeBaseType.GetFullNamespace();
+        var typeParametersText = RoslynExtensions.FormatTypeParameters(typeParameters);
 
-        var generateFileHint = $"{unionTypeFullNameWithNamespace}";
+        var generateFileHint = $"{unionTypeFullNameWithNamespace}{RoslynExtensions.FormatTypeParameterForFileName(typeParameters)}";
 
+        //var generatorRuns = RunCount.Increase(unionTypeSchema.UnionTypeBaseType.FullTypeNameWithNamespace());
+        
         string Replace(string code, params string[] additionalNamespaces)
         {
             code = code
                 .Replace($"namespace {TemplateNamespace}", $"namespace {unionTypeNamespace}")
-                .Replace(TemplateUnionTypeName, unionTypeFullNameWithNamespace)
-                .Replace(TemplateUnionTypeAssertionsTypeName, $"{unionTypeFullName}Assertions")
+                .Replace(TemplateUnionTypeName, unionTypeFullNameWithNamespaceAndGenerics)
+                .Replace($"public {TemplateUnionTypeAssertionsTypeName}(", $"public {unionTypeFullName}Assertions(")
+                .Replace(TemplateUnionTypeAssertionsTypeName, $"{unionTypeFullName}Assertions{typeParametersText}")
                 .Replace(TemplateUnionTypeAssertionExtensions, $"{unionTypeFullName}FluentAssertionExtensions")
+                .Replace(TemplateUnionTypeTypeParameterList, typeParametersText)
                 .Replace(
                     TemplateAdditionalUsingDirectives,
                     additionalNamespaces
                         .Append(unionTypeNamespace)
                         .Distinct()
                         .Select(a => $"using {a};")
-                        .ToSeparatedString(Environment.NewLine));
+                        .ToSeparatedString("\n"));
+            //code = $"//Generator runs: {generatorRuns}\r\n" + code;
+            
             return code;
         }
 
@@ -95,7 +108,7 @@ internal static class Generator
 
         foreach (var derivedType in unionTypeSchema.DerivedTypes)
         {
-            var derivedTypeFullNameWithNamespace = derivedType.FullTypeNameWithNamespace();
+            var derivedTypeFullNameWithNamespace = derivedType.FullTypeNameWithNamespaceAndGenerics();
             yield return (
                 $"{generateFileHint}_Derived_{derivedType.Name}Assertions.g.cs",
                 Replace(Templates.GenerateFluentAssertionsForTemplates.MyDerivedUnionTypeAssertions)

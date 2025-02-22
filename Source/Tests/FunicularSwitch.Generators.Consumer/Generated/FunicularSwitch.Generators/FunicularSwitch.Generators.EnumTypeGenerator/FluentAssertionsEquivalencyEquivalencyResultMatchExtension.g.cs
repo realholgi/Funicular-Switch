@@ -1,34 +1,31 @@
 ﻿#pragma warning disable 1591
-using System;
-using System.Threading.Tasks;
-
 namespace FluentAssertions.Equivalency
 {
-	public static partial class EquivalencyResultMatchExtension
+	internal static partial class EquivalencyResultMatchExtension
 	{
-		public static T Match<T>(this FluentAssertions.Equivalency.EquivalencyResult equivalencyResult, Func<T> assertionCompleted, Func<T> continueWithNext) =>
+		public static T Match<T>(this FluentAssertions.Equivalency.EquivalencyResult equivalencyResult, global::System.Func<T> assertionCompleted, global::System.Func<T> continueWithNext) =>
 		equivalencyResult switch
 		{
 			FluentAssertions.Equivalency.EquivalencyResult.AssertionCompleted => assertionCompleted(),
 			FluentAssertions.Equivalency.EquivalencyResult.ContinueWithNext => continueWithNext(),
-			_ => throw new ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EquivalencyResult: {equivalencyResult.GetType().Name}")
+			_ => throw new global::System.ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EquivalencyResult: {equivalencyResult.GetType().Name}")
 		};
 		
-		public static Task<T> Match<T>(this FluentAssertions.Equivalency.EquivalencyResult equivalencyResult, Func<Task<T>> assertionCompleted, Func<Task<T>> continueWithNext) =>
+		public static global::System.Threading.Tasks.Task<T> Match<T>(this FluentAssertions.Equivalency.EquivalencyResult equivalencyResult, global::System.Func<global::System.Threading.Tasks.Task<T>> assertionCompleted, global::System.Func<global::System.Threading.Tasks.Task<T>> continueWithNext) =>
 		equivalencyResult switch
 		{
 			FluentAssertions.Equivalency.EquivalencyResult.AssertionCompleted => assertionCompleted(),
 			FluentAssertions.Equivalency.EquivalencyResult.ContinueWithNext => continueWithNext(),
-			_ => throw new ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EquivalencyResult: {equivalencyResult.GetType().Name}")
+			_ => throw new global::System.ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EquivalencyResult: {equivalencyResult.GetType().Name}")
 		};
 		
-		public static async Task<T> Match<T>(this Task<FluentAssertions.Equivalency.EquivalencyResult> equivalencyResult, Func<T> assertionCompleted, Func<T> continueWithNext) =>
+		public static async global::System.Threading.Tasks.Task<T> Match<T>(this global::System.Threading.Tasks.Task<FluentAssertions.Equivalency.EquivalencyResult> equivalencyResult, global::System.Func<T> assertionCompleted, global::System.Func<T> continueWithNext) =>
 		(await equivalencyResult.ConfigureAwait(false)).Match(assertionCompleted, continueWithNext);
 		
-		public static async Task<T> Match<T>(this Task<FluentAssertions.Equivalency.EquivalencyResult> equivalencyResult, Func<Task<T>> assertionCompleted, Func<Task<T>> continueWithNext) =>
+		public static async global::System.Threading.Tasks.Task<T> Match<T>(this global::System.Threading.Tasks.Task<FluentAssertions.Equivalency.EquivalencyResult> equivalencyResult, global::System.Func<global::System.Threading.Tasks.Task<T>> assertionCompleted, global::System.Func<global::System.Threading.Tasks.Task<T>> continueWithNext) =>
 		await (await equivalencyResult.ConfigureAwait(false)).Match(assertionCompleted, continueWithNext).ConfigureAwait(false);
 		
-		public static void Switch(this FluentAssertions.Equivalency.EquivalencyResult equivalencyResult, Action assertionCompleted, Action continueWithNext)
+		public static void Switch(this FluentAssertions.Equivalency.EquivalencyResult equivalencyResult, global::System.Action assertionCompleted, global::System.Action continueWithNext)
 		{
 			switch (equivalencyResult)
 			{
@@ -39,11 +36,11 @@ namespace FluentAssertions.Equivalency
 					continueWithNext();
 					break;
 				default:
-					throw new ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EquivalencyResult: {equivalencyResult.GetType().Name}");
+					throw new global::System.ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EquivalencyResult: {equivalencyResult.GetType().Name}");
 			}
 		}
 		
-		public static async Task Switch(this FluentAssertions.Equivalency.EquivalencyResult equivalencyResult, Func<Task> assertionCompleted, Func<Task> continueWithNext)
+		public static async global::System.Threading.Tasks.Task Switch(this FluentAssertions.Equivalency.EquivalencyResult equivalencyResult, global::System.Func<global::System.Threading.Tasks.Task> assertionCompleted, global::System.Func<global::System.Threading.Tasks.Task> continueWithNext)
 		{
 			switch (equivalencyResult)
 			{
@@ -54,14 +51,14 @@ namespace FluentAssertions.Equivalency
 					await continueWithNext().ConfigureAwait(false);
 					break;
 				default:
-					throw new ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EquivalencyResult: {equivalencyResult.GetType().Name}");
+					throw new global::System.ArgumentException($"Unknown enum value from FluentAssertions.Equivalency.EquivalencyResult: {equivalencyResult.GetType().Name}");
 			}
 		}
 		
-		public static async Task Switch(this Task<FluentAssertions.Equivalency.EquivalencyResult> equivalencyResult, Action assertionCompleted, Action continueWithNext) =>
+		public static async global::System.Threading.Tasks.Task Switch(this global::System.Threading.Tasks.Task<FluentAssertions.Equivalency.EquivalencyResult> equivalencyResult, global::System.Action assertionCompleted, global::System.Action continueWithNext) =>
 		(await equivalencyResult.ConfigureAwait(false)).Switch(assertionCompleted, continueWithNext);
 		
-		public static async Task Switch(this Task<FluentAssertions.Equivalency.EquivalencyResult> equivalencyResult, Func<Task> assertionCompleted, Func<Task> continueWithNext) =>
+		public static async global::System.Threading.Tasks.Task Switch(this global::System.Threading.Tasks.Task<FluentAssertions.Equivalency.EquivalencyResult> equivalencyResult, global::System.Func<global::System.Threading.Tasks.Task> assertionCompleted, global::System.Func<global::System.Threading.Tasks.Task> continueWithNext) =>
 		await (await equivalencyResult.ConfigureAwait(false)).Switch(assertionCompleted, continueWithNext).ConfigureAwait(false);
 	}
 }

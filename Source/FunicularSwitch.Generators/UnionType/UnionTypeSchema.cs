@@ -1,26 +1,46 @@
-﻿using FunicularSwitch.Generators.Generation;
+﻿using CommunityToolkit.Mvvm.SourceGenerators.Helpers;
+using FunicularSwitch.Generators.Common;
 
 namespace FunicularSwitch.Generators.UnionType;
 
-public sealed record UnionTypeSchema(string? Namespace, string TypeName, string FullTypeName, IReadOnlyCollection<DerivedType> Cases, bool IsInternal, bool IsEnum)
+public sealed record UnionTypeSchema(string? Namespace,
+	string TypeName,
+	string FullTypeName,
+	string FullTypeNameWithTypeParameters,
+	EquatableArray<DerivedType> Cases,
+	EquatableArray<string> TypeParameters,
+	bool IsInternal,
+	bool IsPartial,
+	UnionTypeTypeKind TypeKind,
+	EquatableArray<string> Modifiers,
+	StaticFactoryMethodsInfo? StaticFactoryInfo);
+
+public enum UnionTypeTypeKind
 {
-    public string? Namespace { get; } = Namespace;
-    public string FullTypeName { get; } = FullTypeName;
-    public string TypeName { get; } = TypeName;
-    public IReadOnlyCollection<DerivedType> Cases { get; } = Cases;
-    public bool IsInternal { get; } = IsInternal;
-    
-    public bool IsEnum { get; } = IsEnum;
+	Class,
+	Record,
+	Interface
 }
+
+public record StaticFactoryMethodsInfo(
+    EquatableArray<CallableMemberInfo> ExistingStaticMethods, 
+    EquatableArray<string> ExistingStaticFields
+);
 
 public sealed record DerivedType
 {
-    public string FullTypeName { get; }
+	public string FullTypeName { get; }
+    public EquatableArray<CallableMemberInfo> Constructors { get; }
+    public EquatableArray<PropertyOrFieldInfo> RequiredMembers { get; }
     public string ParameterName { get; }
-
-    public DerivedType(string fullTypeName, string typeName)
+	public string StaticFactoryMethodName { get; }
+	
+    public DerivedType(string fullTypeName, string parameterName, string staticFactoryMethodName, EquatableArray<CallableMemberInfo>? constructors = null, EquatableArray<PropertyOrFieldInfo>? requiredMembers = null)
     {
         FullTypeName = fullTypeName;
-        ParameterName = (typeName.Any(c => c != '_') ? typeName.TrimEnd('_') : typeName).ToParameterName();
+        ParameterName = parameterName;
+        StaticFactoryMethodName = staticFactoryMethodName;
+        RequiredMembers = requiredMembers ?? [];
+        Constructors = constructors ?? [];
     }
 }

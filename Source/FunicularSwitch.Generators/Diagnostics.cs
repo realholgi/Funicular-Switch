@@ -62,6 +62,20 @@ static class Diagnostics
             id: "FUN0009",
             title: "Enum type is not accessible",
             messageFormat: message, severity: DiagnosticSeverity.Error);
+
+    public static Diagnostic InvalidExceptionToErrorMethod(string message, Location location) =>
+	    Create(location,
+		    "FUN0010",
+		    "Invalid exception to error method",
+		    $"{message} -  Please implement method for generic error type as static method with signature Exception -> TError.", 
+		    DiagnosticSeverity.Error);
+
+    public static Diagnostic InvalidUnionTypeAttributeUsage(string message, Location location) =>
+	    Create(location,
+		    id: "FUN0011",
+		    title: "Invalid attribute usage",
+		    messageFormat: $"{message} -  Valid UnionType attribute usages: [UnionType], [UnionType(StaticFactoryMethods = false)], [UnionType(CaseOder = CaseOrder.AsDeclared, StaticFactoryMethods = true)].", 
+		    severity: DiagnosticSeverity.Error);
     
     static Diagnostic Create(Location location, string id, string title, string messageFormat, DiagnosticSeverity severity = DiagnosticSeverity.Warning) =>
         Diagnostic.Create(
