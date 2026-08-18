@@ -1,14 +1,17 @@
 ﻿{
   Diagnostics: [
     {
-      Id: FUN0007,
-      Title: Union type is not accessible,
-      Severity: Error,
-      WarningLevel: 0,
-      Location: : (7,1)-(8,22),
-      MessageFormat: FunicularSwitch.Test.Outer.Base needs at least internal accessibility,
+      Location: : (6,1)-(7,22),
       Message: FunicularSwitch.Test.Outer.Base needs at least internal accessibility,
-      Category: ResultTypeGenerator
+      Severity: Error,
+      Descriptor: {
+        Id: FUN0007,
+        Title: Union type is not accessible,
+        MessageFormat: FunicularSwitch.Test.Outer.Base needs at least internal accessibility,
+        Category: ResultTypeGenerator,
+        DefaultSeverity: Error,
+        IsEnabledByDefault: true
+      }
     }
   ]
 }

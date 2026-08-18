@@ -33,10 +33,16 @@ public class EnumTypeGenerator : IIncrementalGenerator
                 .Concat(t.Left.Right.SelectMany(l => l))
                 .Concat(t.Right.SelectMany(l => l)));
 
+        var referencesJetBrainsAnnotationsAssembly = context.CompilationProvider
+            .SelectMany((c, _) => c.SourceModule.ReferencedAssemblySymbols)
+            .Where(a => a.Name == "JetBrains.Annotations")
+            .Collect()
+            .Select((a, _) => a.Length > 0);
+
         context.RegisterSourceOutput(
-            enumSymbols.Collect(),
+            enumSymbols.Collect().Combine(referencesJetBrainsAnnotationsAssembly),
             static (spc, source) =>
-                Execute(source, spc));
+                Execute(source.Left, source.Right, spc));
 
         IncrementalValueProvider<ImmutableArray<EquatableArray<(EnumTypeSchema? enumTypeSchema, DiagnosticInfo? error)>>> GetEnumSymbols(string attributeName) =>
             context.SyntaxProvider
@@ -81,7 +87,7 @@ public class EnumTypeGenerator : IIncrementalGenerator
         return (enumTypeSchema, null);
     }
 
-    static void Execute(IReadOnlyCollection<(EnumTypeSchema? enumTypeSchema, DiagnosticInfo? error)> enumSymbolInfos, SourceProductionContext context)
+    static void Execute(IReadOnlyCollection<(EnumTypeSchema? enumTypeSchema, DiagnosticInfo? error)> enumSymbolInfos, bool hasJetBrainsAnnotationsReference, SourceProductionContext context)
     {
         foreach (var (_, diagnostic) in enumSymbolInfos)
         {
@@ -98,7 +104,7 @@ public class EnumTypeGenerator : IIncrementalGenerator
                          .OrderByDescending(s => s!.Precedence)
                          .First()))
         {
-            var (filename, source) = Generator.Emit(enumSymbolInfo!, context.ReportDiagnostic, context.CancellationToken);
+            var (filename, source) = Generator.Emit(enumSymbolInfo!, hasJetBrainsAnnotationsReference: hasJetBrainsAnnotationsReference, context.ReportDiagnostic, context.CancellationToken);
             context.AddSource(filename, source);
         }
     }
@@ -118,7 +124,7 @@ public class EnumTypeGenerator : IIncrementalGenerator
 
     static IEnumerable<EnumSymbolInfo> GetSymbolInfosForExtendEnumTypeAttribute(AttributeData extendEnumTypesAttribute)
     {
-        if (extendEnumTypesAttribute.ConstructorArguments[0].Value 
+        if (extendEnumTypesAttribute.ConstructorArguments[0].Value
                 is not INamedTypeSymbol typeSymbol || typeSymbol.EnumUnderlyingType == null)
             yield break;
 
@@ -139,7 +145,7 @@ public class EnumTypeGenerator : IIncrementalGenerator
     {
         var attributeSymbol = extendEnumTypesAttribute.AttributeClass!;
 
-        var enumFromAssembly = extendEnumTypesAttribute.ConstructorArguments.FirstOrDefault().Value 
+        var enumFromAssembly = extendEnumTypesAttribute.ConstructorArguments.FirstOrDefault().Value
             is INamedTypeSymbol typeFromAssembly
             ? typeFromAssembly.ContainingAssembly
             : attributeSymbol.ContainingAssembly;

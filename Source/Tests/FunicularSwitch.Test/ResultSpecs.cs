@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using System.Collections.Immutable;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -121,14 +117,35 @@ public class ResultSpecs
     class Something;
 
     [TestMethod]
-    public void AsTest()
+    public void As_T_T1_Match()
     {
         var obj = Result.Ok<object>(42);
         var intResult = obj.As<object, int>();
         intResult.Should().BeOk().Which.Should().Be(42);
+    }
 
-        var stringResult = obj.As<string>();
-        stringResult.Should().BeError();
+    [TestMethod]
+    public void As_T_T1_NoMatch()
+    {
+        var obj = Result.Ok<object>(42);
+        var intResult = obj.As<object, string>();
+        intResult.Should().BeError().Which.Should().Contain("Int32").And.Contain("String");
+    }
+
+    [TestMethod]
+    public void As_T1_Match()
+    {
+        var obj = Result.Ok<object>(42);
+        var intResult = obj.As<int>();
+        intResult.Should().BeOk().Which.Should().Be(42);
+    }
+
+    [TestMethod]
+    public void As_T1_NoMatch()
+    {
+        var obj = Result.Ok<object>(42);
+        var intResult = obj.As<string>();
+        intResult.Should().BeError().Which.Should().Contain("Int32").And.Contain("String");
     }
 
     [TestMethod]
@@ -138,9 +155,6 @@ public class ResultSpecs
         result.Equals(Result.Ok(42)).Should().BeTrue();
         Option<int> option = 42;
         option.Equals(Option.Some(42)).Should().BeTrue();
-
-        var odds = Enumerable.Range(0, 10).Choose(i => i % 2 != 0 ? i * 10 : Option<int>.None).ToList();
-        odds.Should().BeEquivalentTo(Enumerable.Range(0, 10).Where(i => i % 2 != 0).Select(i => i * 10));
     }
 
     [TestMethod]
@@ -172,7 +186,7 @@ public class ResultSpecs
             .Aggregate();
 
         result.Should().BeOk()
-	        .Subject.Should().BeEquivalentTo(new[] { 0, 2, 4 });
+            .Subject.Should().BeEquivalentTo([0, 2, 4]);
     }
 
     [TestMethod]
@@ -235,15 +249,15 @@ public class ResultSpecs
             from r in okAsync
             let x = r * 2
             select x
-        )).Should().BeEquivalentTo(await okAsync.Map(r => r * 2));        
-        
+        )).Should().BeEquivalentTo(await okAsync.Map(r => r * 2));
+
         (await (
             from r in ok
             from r1 in okAsync
             let x = r * r1
             select x
         )).Should().BeEquivalentTo(await okAsync.Bind(r => ok.Map(r1 => r * r1)));
-        
+
         (await (
             from r in okAsync
             from r1 in ok
@@ -267,14 +281,14 @@ public class ResultSpecs
     [TestMethod]
     public async Task AsyncTryVoidReturn()
     {
-	    async Task MyAction()
-	    {
-		    await Task.Delay(1);
-		    throw new("broken");
-	    }
+        async Task MyAction()
+        {
+            await Task.Delay(1);
+            throw new("broken");
+        }
 
-	    var result = Result.Try(MyAction, ex => ex.Message);
-	    (await result).Should().BeError();
+        var result = Result.Try(MyAction, ex => ex.Message);
+        (await result).Should().BeError();
     }
 
     [TestMethod]

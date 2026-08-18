@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using FunicularSwitch.Generators.Common;
+using FunicularSwitch.Generators.Generation;
 using Microsoft.CodeAnalysis;
 
 namespace FunicularSwitch.Generators.ResultType;
@@ -10,20 +11,23 @@ static class Generator
     const string TemplateResultTypeName = "MyResult";
     const string TemplateErrorTypeName = "MyError";
 
-    public static IEnumerable<(string filename, string source)> Emit(
-        ResultTypeSchema resultTypeSchema, 
+    public static IEnumerable<(string filename, string source)> Emit(ResultTypeSchema resultTypeSchema,
         SymbolWrapper<INamedTypeSymbol> defaultErrorType,
         MergeMethod? mergeErrorMethod,
         ExceptionToErrorMethod? exceptionToErrorMethod,
-        Action<Diagnostic> reportDiagnostic, 
+        Action<Diagnostic> reportDiagnostic,
+        bool referencesFunicularSwitchGeneric,
+        bool referencesJetBrainsAnnotations,
         CancellationToken cancellationToken)
     {
-	    var resultTypeName = resultTypeSchema.ResultTypeName.Name;
+        var resultTypeName = resultTypeSchema.ResultTypeName.Name;
         var resultTypeNamespace = resultTypeSchema.ResultTypeNamespace;
         if (resultTypeNamespace == null)
         {
-	        reportDiagnostic(Diagnostics.ResultTypeInGlobalNamespace($"Result type {resultTypeName} is placed in global namespace, this is not supported. Please put {resultTypeName} into non empty namespace.", resultTypeSchema.ResultTypeLocation?.ToLocation() ?? Location.None));
-	        yield break;
+            reportDiagnostic(Diagnostics.ResultTypeInGlobalNamespace(
+                $"Result type {resultTypeName} is placed in global namespace, this is not supported. Please put {resultTypeName} into non empty namespace.",
+                resultTypeSchema.ResultTypeLocation?.ToLocation() ?? Location.None));
+            yield break;
         }
 
         var errorTypeSymbol = resultTypeSchema.ErrorType ?? defaultErrorType;
@@ -32,7 +36,14 @@ static class Generator
 
         string Replace(string code, IReadOnlyCollection<string> additionalNamespaces, string genericTypeParameterNameForHandleExceptions)
         {
-	        code = code
+            if (!referencesJetBrainsAnnotations)
+            {
+                code = code
+                    .Replace(Constants.Attributes.InstantHandle, "")
+                    .Replace(Constants.Attributes.InstantHandleRequireAwait, "")
+                    .Replace(Constants.Attributes.MustUseReturnValue, "");
+            }
+            code = code
                 .Replace($"namespace {TemplateNamespace}", $"namespace {resultTypeNamespace}")
                 .Replace(TemplateResultTypeName, resultTypeName)
                 .Replace(TemplateErrorTypeName, errorTypeSymbol.Symbol.Name);
@@ -40,6 +51,7 @@ static class Generator
             if (resultTypeSchema.IsInternal)
                 code = code
                     .Replace("public abstract partial", "abstract partial")
+                    .Replace("public readonly partial struct", "readonly partial struct")
                     .Replace("public static partial", "static partial");
 
             code = code
@@ -47,8 +59,53 @@ static class Generator
 
             if (exceptionToErrorMethod != null)
             {
-	            code = code.Replace("throw; //createGenericErrorResult",
-		            $"return {resultTypeName}.Error<{genericTypeParameterNameForHandleExceptions}>({exceptionToErrorMethod.FullMethodName}(e));");
+                code = code.Replace("throw; //createGenericErrorResult",
+                    $"return {resultTypeName}.Error<{genericTypeParameterNameForHandleExceptions}>({exceptionToErrorMethod.FullMethodName}(e));");
+            }
+
+            if (referencesFunicularSwitchGeneric)
+            {
+                var genericResultType = $"global::FunicularSwitch.Generic.GenericResult<T, {errorTypeSymbol.Symbol.Name}>";
+                code = code.Replace("//createGenericResultConversions",
+                    $"""
+                     
+                             public static implicit operator {genericResultType}({resultTypeName}<T> result) => 
+                                 result.Match(
+                                     {genericResultType}.Ok,
+                                     {genericResultType}.Error);
+                             
+                             public static implicit operator {resultTypeName}<T>({genericResultType} result) =>
+                                 result.Match<{resultTypeName}<T>>(
+                                     {resultTypeName}<T>.Ok,
+                                     {resultTypeName}<T>.Error);
+                             
+                             public {genericResultType} ToGenericResult() =>
+                                 Match(
+                                     {genericResultType}.Ok,
+                                     {genericResultType}.Error);
+                     """);
+
+                code = code.Replace("//createGenericResultConversionExtensions",
+                    $"""
+                    
+                            public static {resultTypeName}<T> To{resultTypeName}<T>(
+                                this {genericResultType} result) =>
+                                    result.Match<{resultTypeName}<T>>(
+                                        {resultTypeName}<T>.Ok,
+                                        {resultTypeName}<T>.Error);
+                            
+                            public static global::System.Threading.Tasks.Task<{resultTypeName}<T>> To{resultTypeName}<T>(
+                                this global::System.Threading.Tasks.Task<{genericResultType}> result) =>
+                                    result.Match(
+                                        {resultTypeName}<T>.Ok,
+                                        {resultTypeName}<T>.Error);
+                            
+                            public static global::System.Threading.Tasks.Task<{genericResultType}> ToGenericResult<T>(
+                                this global::System.Threading.Tasks.Task<{resultTypeName}<T>> result) =>
+                                    result.Match(
+                                        {genericResultType}.Ok,
+                                        {genericResultType}.Error);
+                    """);
             }
 
             return code;
@@ -58,12 +115,15 @@ static class Generator
         if (errorTypeNamespace != resultTypeNamespace && errorTypeNamespace != null)
             additionalNamespaces.Add(errorTypeNamespace);
 
+        if (referencesFunicularSwitchGeneric)
+            additionalNamespaces.Add("FunicularSwitch.Generic");
+
         var generateFileHint = $"{resultTypeNamespace}.{resultTypeSchema.ResultTypeName}";
 
         var resultTypeImpl = Replace(Templates.ResultTypeTemplates.ResultType, additionalNamespaces, "T1");
 
         //resultTypeImpl = $"//Generator runs: {RunCount.Increase(generateFileHint)}\r\n" + resultTypeImpl;
-        
+
         yield return ($"{generateFileHint}.g.cs", resultTypeImpl);
 
         if (mergeErrorMethod != null)
@@ -74,8 +134,8 @@ static class Generator
 
             var mergeCode = Replace(
                 Templates.ResultTypeTemplates.ResultTypeWithMerge
-                    .Replace("//generated aggregate methods", GenerateAggregateMethods(10))
-                    .Replace("//generated aggregate extension methods", GenerateAggregateExtensionMethods(10, isValueType))
+                    .Replace("//generated aggregate methods", GenerateAggregateMethods(10, referencesJetBrainsAnnotations))
+                    .Replace("//generated aggregate extension methods", GenerateAggregateExtensionMethods(10, isValueType, referencesJetBrainsAnnotations))
                     .Replace("Merge__MemberOrExtensionMethod", mergeErrorMethod.MethodName),
                 additionalNamespaces,
                 "T"
@@ -85,9 +145,10 @@ static class Generator
         }
     }
 
-    static string GenerateAggregateExtensionMethods(int maxParameterCount, bool isValueType) => Generate(maxParameterCount, i => MakeAggregateExtensionMethod(i, isValueType));
-    static string GenerateAggregateMethods(int maxParameterCount) => Generate(maxParameterCount, GenerateAggregateMethod);
-        
+    static string GenerateAggregateExtensionMethods(int maxParameterCount, bool isValueType, bool referencesJetBrainsAnnotations) => Generate(maxParameterCount, i => MakeAggregateExtensionMethod(i, isValueType, referencesJetBrainsAnnotations));
+    static string GenerateAggregateMethods(int maxParameterCount, bool referencesJetBrainsAnnotations) => Generate(maxParameterCount,
+        i => GenerateAggregateMethod(i, referencesJetBrainsAnnotations));
+
 
     static string Generate(int maxParameterCount, Func<int, string> generateMethods) =>
         Enumerable
@@ -95,10 +156,10 @@ static class Generator
             .Select(generateMethods)
             .ToSeparatedString("\n");
 
-    static string MakeAggregateExtensionMethod(int typeParameterCount, bool isValueType)
+    static string MakeAggregateExtensionMethod(int typeParameterCount, bool isValueType, bool referencesJetBrainsAnnotations)
     {
         var range = Enumerable.Range(1, typeParameterCount).ToImmutableArray();
-        string Expand(Func<int, string> strAtIndex, string separator = ", ") => range.Select(strAtIndex).ToSeparatedString(separator); 
+        string Expand(Func<int, string> strAtIndex, string separator = ", ") => range.Select(strAtIndex).ToSeparatedString(separator);
 
         var typeArguments = Expand(i => $"T{i}");
         var typeArgumentsWithResult = $"{typeArguments}, TResult";
@@ -114,10 +175,13 @@ static class Generator
         var taskResultArrayElements = Expand(i => $"r{i}.Result");
         var tupleArguments = Expand(i => $"v{i}");
 
+        var mustUseReturnValueAttribute = referencesJetBrainsAnnotations ? Constants.Attributes.MustUseReturnValue : "";
         return $@"
-        public static MyResult<({typeArguments})> Aggregate<{typeArguments}>(this {parameterDeclarations}) => 
+		{mustUseReturnValueAttribute}
+		public static MyResult<({typeArguments})> Aggregate<{typeArguments}>(this {parameterDeclarations}) => 
             Aggregate({resultArrayElements}, ({tupleArguments}) => ({tupleArguments}));
 
+		{mustUseReturnValueAttribute}
         public static MyResult<TResult> Aggregate<{typeArgumentsWithResult}>(this {parametersWithCombine})            
         {{
             if ({okCheck})
@@ -130,9 +194,11 @@ static class Generator
                 )!);
         }}
         
+		{mustUseReturnValueAttribute}
         public static global::System.Threading.Tasks.Task<MyResult<({typeArguments})>> Aggregate<{typeArguments}>(this {taskParameterDeclarations})
             => Aggregate({resultArrayElements}, ({tupleArguments}) => ({tupleArguments}));
-
+		
+		{mustUseReturnValueAttribute}
         public static async global::System.Threading.Tasks.Task<MyResult<TResult>> Aggregate<{typeArgumentsWithResult}>(this {taskParameterDeclarations}, global::System.Func<{typeArgumentsWithResult}> combine)            
         {{
             await global::System.Threading.Tasks.Task.WhenAll({resultArrayElements});
@@ -140,23 +206,29 @@ static class Generator
         }}";
     }
 
-    public static string GenerateAggregateMethod(int typeParameterCount)
+    public static string GenerateAggregateMethod(int typeParameterCount, bool referencesJetBrainsAnnotations)
     {
         var range = Enumerable.Range(1, typeParameterCount).ToImmutableArray();
-        string Expand(Func<int, string> strAtIndex, string separator = ", ") => range.Select(strAtIndex).ToSeparatedString(separator); 
+        string Expand(Func<int, string> strAtIndex, string separator = ", ") => range.Select(strAtIndex).ToSeparatedString(separator);
 
         var typeParameters = Expand(i => $"T{i}");
         var parameterDeclarations = Expand(i => $"MyResult<T{i}> r{i}");
         var taskParameterDeclarations = Expand(i => $"global::System.Threading.Tasks.Task<MyResult<T{i}>> r{i}");
         var parameters = Expand(i => $"r{i}");
 
+        var mustUseReturnValueAttribute = referencesJetBrainsAnnotations ? Constants.Attributes.MustUseReturnValue : "";
         return $@"
+
+		{mustUseReturnValueAttribute}
         public static MyResult<({typeParameters})> Aggregate<{typeParameters}>({parameterDeclarations}) => MyResultExtension.Aggregate({parameters});
-
+		
+		{mustUseReturnValueAttribute}
         public static MyResult<TResult> Aggregate<{typeParameters}, TResult>({parameterDeclarations}, global::System.Func<{typeParameters}, TResult> combine) => MyResultExtension.Aggregate({parameters}, combine);
-
+		
+		{mustUseReturnValueAttribute}
         public static global::System.Threading.Tasks.Task<MyResult<({typeParameters})>> Aggregate<{typeParameters}>({taskParameterDeclarations}) => MyResultExtension.Aggregate({parameters});
-
+		
+		{mustUseReturnValueAttribute}
         public static global::System.Threading.Tasks.Task<MyResult<TResult>> Aggregate<{typeParameters}, TResult>({taskParameterDeclarations}, global::System.Func<{typeParameters}, TResult> combine) => MyResultExtension.Aggregate({parameters}, combine);";
     }
 }

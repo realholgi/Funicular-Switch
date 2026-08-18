@@ -19,7 +19,9 @@ FunicularSwitch helps you to:
 ### Packages
 
  - [NuGet: FunicularSwitch](https://www.nuget.org/packages/FunicularSwitch/)
+ - [NuGet: FunicularSwitch.Analyzers](https://www.nuget.org/packages/FunicularSwitch.Analyzers/)
  - [NuGet: FunicularSwitch.Generators](https://www.nuget.org/packages/FunicularSwitch.Generators/)
+ - [NuGet: FunicularSwitch.Transformers](https://www.nuget.org/packages/FunicularSwitch.Transformers/)
 
 [**FunicularSwitch**](https://github.com/bluehands/Funicular-Switch#funicularswitch-usage) is a library containing the Result and Option type. Usage and the general idea is described in the following sections. The 'Error' type is always string, which allows natural concatenation and is sufficient in many cases.
 
@@ -215,6 +217,37 @@ Stink fruit, I do not serve that
 ```
 As you can see, all errors are collected as far as possible. Feel free to play around with the cooks skill level, fruits in stock and the ingredients list to finally get your fruit salad.
 
+# <a name="analyzers_usage"></a>FunicularSwitch.Analyzers.Usage
+
+The FunicularSwitch.Analyzers package is automatically included when you reference the FunicularSwitch package starting from version v6.2.0.
+
+The analyzers are designed to provide useful refactoring and to show usage opportunities that can help people using the functional concepts for the first time to just experiment with the basics and get recommendations on which other functions and concepts may apply to their situation.
+
+## Analyzers
+
+### FS0001: MatchNullAnalyzer
+
+Consider the following code
+
+```csharp
+public string? ToLower(Option<string> textOption)
+{
+    return textOption.Match(some: some => some.ToLower(), none: () => null);
+}
+```
+
+While this works as intended, the intention of
+- convert the text to lowercase, if there is text
+- return the converted text, or null if none
+
+can be also expressed using the ``.Map(...)`` and ``.GetValueOrDefault()`` operators which will more explicitly tell someone familiar with functional concepts the above two steps. The analyzers points this out, and offers a code fix that will refactor the code to:
+```csharp
+public string? ToLower(Option<string> textOption)
+{
+    return textOption.Map(some => some.ToLower()).GetValueOrDefault();
+}
+```
+
 # <a name="generators_usage"></a>FunicularSwitch.Generators Usage
 
 ## ResultType attribute
@@ -404,6 +437,44 @@ To generate Match extensions for a specific type in an assembly write:
 ```
 [assembly: ExtendEnum(typeof(DateTimeKind), CaseOrder = EnumCaseOrder.Alphabetic)]
 ```
+
+## TransformMonad attribute
+
+Attaching the `TransformMonad` attribute to a type will generate return, bind and lift methods for a nested monad type.
+
+The attributes first argument must be a monad type.
+
+A monad type is either
+- a generic type implementing a static return and an instance bind method
+- a static class implementing a static return and a static bind method
+
+Every argument after that needs to be a so-called transformer type.
+A transformer type is any static class with a `MonadTransformer` attribute pointing to a monad type and implementing a BindT method with a certain signature.
+
+If `TransformMonad` is attached to a generic type, this type will function as a wrapper type around the nested monad type. If it's a static class it will only generate extension methods for the nested monad type. 
+
+Let's take `ResultT` from the [FunicularSwitch.Transformers](https://www.nuget.org/packages/FunicularSwitch.Transformers/) package to demonstrate this:
+
+```cs
+[MonadTransformer(typeof(Result<>))]
+public static class ResultT
+{
+    public static Monad<Result<B>> BindT<A, B>(Monad<Result<A>> ma, Func<A, Monad<Result<B>>> fn) =>
+        ma.Bind(aResult => aResult.Match(fn, e => ma.Return(Result.Error<B>(e))));
+}
+
+[TransformMonad(typeof(Option<>), typeof(ResultT))]
+public static partial class OptionResult;
+```
+
+This will generate extension methods for `Option<Result<>>` to be able to bind this directly to another `Option<Result<>>`.
+It also adds a static return method `OptionResult.SomeOk` (It's called `SomeOk` in this case because the name of the return method of `Option<>` is `Some` and of `Result<>` is `Ok`) and a lift method to raise a `Option<>` to the `Result<Option<>>` domain.
+Additionally, it adds async variants, a map method and also methods to support LINQ query syntax.
+
+## ExtendMonad attribute
+
+Attaching the `ExtendMonad` attribute to a monad type will generate a map method, methods to allow using LINQ query
+syntax and also async variants.
 
 ### Additional documentation
 

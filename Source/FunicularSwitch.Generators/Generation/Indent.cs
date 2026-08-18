@@ -15,7 +15,7 @@ public class Indent : IDisposable
         m_End = end;
         m_Start = start;
         if (start != null) Builder.WriteLine(start);
-        Builder.PushIndent("\t");
+        Builder.PushIndent(tt.DefaultIntent);
     }
 
     public virtual void Dispose()
@@ -99,7 +99,7 @@ public static class BuildExtensions
 
     public static Scope Method(this CSharpBuilder tt, string returnType, string methodName, IEnumerable<Parameter> parameters, string? modifiers = null)
     {
-        tt.WriteMethodSignature(returnType, methodName, parameters, modifiers);
+        tt.WriteMethodSignature(returnType, methodName, parameters, [], modifiers);
         return tt.Scope();
     }
 
@@ -162,9 +162,16 @@ public static class BuildExtensions
     {
         WriteMethodSignature(tt, returnType, methodName, new string[] { }, new string[] { });
     }
-    public static void WriteMethodSignature(this CSharpBuilder tt, string returnType, string methodName, IEnumerable<Parameter> parameters, string? modifiers = null, bool lambda = false)
+    public static void WriteMethodSignature(this CSharpBuilder tt, string returnType, string methodName, IEnumerable<Parameter> parameters, IEnumerable<string> typeConstraints, string? modifiers = null, bool lambda = false)
     {
-        tt.WriteLine("{0}{1} {2}({3}){4}", modifiers != null ? modifiers + " " : "", returnType, methodName, String.Join(", ", parameters), lambda ? " =>" : "");
+        tt.WriteLine(
+            "{0}{1} {2}({3}){4}{5}",
+            modifiers != null ? modifiers + " " : "",
+            returnType,
+            methodName,
+            string.Join(", ", parameters),
+            string.Join("", typeConstraints.Select(x => " " + x)),
+            lambda ? " =>" : "");
     }
     public static void WriteUsings(this CSharpBuilder tt, params string[] usings)
     {
@@ -174,19 +181,15 @@ public static class BuildExtensions
         }
         tt.NewLine();
     }
-    public static void WriteAttribute(this CSharpBuilder tt, string attributeName)
-    {
-        tt.WriteLine("[{0}]", attributeName);
-    }
 
     public static void WriteAutoProperty(this CSharpBuilder tt, string returnType, string propertyName)
     {
         tt.WriteLine("public {0} {1} {{ get; set; }}", returnType, propertyName);
     }
 
-    public static void WriteGetOnlyProperty(this CSharpBuilder tt, string returnType, string propertyName)
+    public static void WriteGetOnlyProperty(this CSharpBuilder tt, string returnType, string propertyName, string? initializer = default)
     {
-        tt.WriteLine("public {0} {1} {{ get; }}", returnType, propertyName);
+        tt.WriteLine("public {0} {1} {{ get; }}{2}", returnType, propertyName, initializer is not null ? $" = {initializer};" : string.Empty);
     }
 
     public static void InitializeListProperty(this CSharpBuilder tt, string type, string name, IEnumerable<string> values, bool withComma = true, string? emptyCondition = null)
@@ -224,7 +227,7 @@ public static class BuildExtensions
 
     public static string ToParameterName(this string name)
     {
-	    var typeNameWithoutOuter = name.Split('.').Last();
+        var typeNameWithoutOuter = name.Split('.').Last();
         var parameterName = typeNameWithoutOuter.FirstToLower();
         return PrefixAtIfKeyword(parameterName);
     }
@@ -244,6 +247,4 @@ public static class BuildExtensions
     }
 
     public static string ToMatchExtensionFilename(this string fullTypeName, EquatableArray<string> typeParameters) => $"{fullTypeName.Replace(".", "")}{RoslynExtensions.FormatTypeParameterForFileName(typeParameters)}MatchExtension.g.cs";
-
-    
 }
